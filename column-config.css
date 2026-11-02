@@ -1,0 +1,159 @@
+/* ============================================================
+   COLUMN CONFIG PAGE STYLES - Профили магазинов
+   ============================================================ */
+
+.config-header {
+    margin-bottom: 30px;
+}
+
+.config-header .header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.config-header .subtitle {
+    color: #a0a0c0;
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+.config-section {
+    margin-bottom: 24px;
+}
+
+.settings-card {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 24px;
+}
+
+.settings-card h2 {
+    color: #c0c0e0;
+    font-size: 1.1rem;
+    margin: 0 0 20px 0;
+}
+
+/* --- Заголовок профилей --- */
+.profiles-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+
+/* --- Список профилей --- */
+.profiles-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.profile-card {
+    background: rgba(139, 92, 246, 0.06);
+    border: 1px solid rgba(139, 92, 246, 0.15);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    transition: all 0.2s;
+}
+
+.profile-card:hover {
+    background: rgba(139, 92, 246, 0.1);
+    border-color: rgba(139, 92, 246, 0.3);
+}
+
+.profile-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.profile-name {
+    color: #e0e0ff;
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.profile-columns {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+}
+
+.profile-col {
+    font-size: 0.85rem;
+    color: #a0a0c0;
+}
+
+.profile-col .label {
+    color: #7a7a9a;
+    margin-right: 4px;
+}
+
+.profile-col .value {
+    color: #c0c0e0;
+    font-weight: 500;
+}
+
+.profile-date {
+    color: #6b7280;
+    font-size: 0.78rem;
+}
+
+.profile-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+/* --- Форма --- */
+.form-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.form-field-wide {
+    grid-column: 1 / -1;
+}
+
+.required {
+    color: #e74c3c;
+}
+
+/* --- Загрузка --- */
+.loading-state {
+    color: #7a7a9a;
+    text-align: center;
+    padding: 40px 20px;
+}
+
+/* --- Responsive --- */
+@media (max-width: 768px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+
+    .profile-card {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .profile-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    .profile-columns {
+        flex-direction: column;
+        gap: 4px;
+    }
+}

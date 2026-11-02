@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Приёмка</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="warehouse.css">
+    <link rel="stylesheet" href="priyomka.css">
+</head>
+<body>
+    <div class="container guide-container">
+        <header class="editor-header">
+            <div class="header-top">
+                <h1>📥 Приёмка</h1>
+                <div class="user-info">
+                    <span id="doknomInfo" class="doc-info" style="display:none;">
+                        <span class="doc-nomer">📄 <strong id="docNomer">—</strong></span>
+                        <span class="doc-author" id="docAuthorInfo" style="display:none;">👤 <strong id="docAuthor">—</strong></span>
+                        <span class="doc-date" id="docDateInfo" style="display:none;">📅 <strong id="docDate">—</strong></span>
+                        <span class="doc-redate" id="docRedateInfo" style="display:none;"><strong>Отредактировано:</strong> <strong id="docRedate">—</strong></span>
+                    </span>
+                    <button id="backBtn" class="btn btn-ghost btn-small">← Назад</button>
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <div id="priyomkaSection" class="editor-section">
+                <!-- Панель действий -->
+                <div class="guide-toolbar">
+                    <button id="loadPriyomkaBtn" class="btn btn-primary btn-small">📥 Загрузить</button>
+                    <button id="refreshBtn" class="btn btn-secondary btn-small">✅ Принять на склад</button>
+                    <button id="printStickersBtn" class="btn btn-ghost btn-small" style="display:none;">🏷️ Распечатать стикеры</button>
+                    <input type="text" id="searchInput" placeholder="Поиск по номеру документа..." class="guide-search-input">
+                </div>
+
+                <div class="guide-table-wrapper" id="priyomkaTableContainer">
+                    <div class="loading-message">Нажмите "Загрузить" для загрузки данных</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Модальное окно загрузки -->
+    <div id="loadPriyomkaModal" class="priyomka-modal" style="display: none;">
+        <div class="priyomka-modal-overlay"></div>
+        <div class="priyomka-modal-content" style="max-width: 800px;">
+            <div class="priyomka-modal-header">
+                <h3>📥 Загрузка приёмки</h3>
+                <button class="btn-modal-close">×</button>
+            </div>
+            <div class="priyomka-modal-body">
+                <div class="form-group" style="margin-bottom:16px;">
+                    <label>Дата</label>
+                    <input type="date" id="selectDateInput">
+                </div>
+
+                <div id="documentsListWrapper" style="display:none;">
+                    <h4 style="margin-bottom:8px;">Документы за <span id="selectedDateLabel"></span>:</h4>
+                    <div class="accept-results-table-wrapper" style="max-height:400px;">
+                        <table class="accept-results-table">
+                            <thead>
+                                <tr>
+                                    <th>Номер</th>
+                                    <th>Время</th>
+                                    <th>Автор</th>
+                                    <th style="width:40px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="documentsListBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="documentsEmptyMsg" style="text-align:center;padding:20px;color:#a0a0c0;display:none;">Нет документов за выбранную дату</div>
+            </div>
+            <div class="priyomka-modal-footer">
+                <button id="closeLoadModal" class="btn btn-ghost">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно просмотра изображения -->
+    <div id="imageFullview" class="image-fullview">
+        <img id="fullviewImg" src="" alt="">
+    </div>
+
+    <!-- Модальное окно стикеров -->
+    <div id="stickersModal" class="priyomka-modal" style="display: none;">
+        <div class="priyomka-modal-overlay"></div>
+        <div class="priyomka-modal-content" style="max-width: 600px;">
+            <div class="priyomka-modal-header">
+                <h3>🏷️ Распечатать стикеры</h3>
+                <button class="btn-modal-close">×</button>
+            </div>
+            <div class="priyomka-modal-body">
+                <label style="display:block;margin-bottom:12px;font-size:0.95rem;color:#c0c0e0;">
+                    <input type="checkbox" id="selectAllStickers" checked> <strong>Выбрать все / Снять все</strong>
+                </label>
+                <div class="accept-results-table-wrapper" style="max-height:400px;overflow-y:auto;">
+                    <table class="accept-results-table" id="stickersTable">
+                        <thead>
+                            <tr>
+                                <th style="width:40px;text-align:center;"></th>
+                                <th>kodpod</th>
+                                <th>Код</th>
+                                <th>Артикул</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stickersTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="priyomka-modal-footer">
+                <button id="printStickersConfirmBtn" class="btn btn-primary">🖨️ Распечатать</button>
+                <button id="closeStickersModal" class="btn btn-ghost">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="priyomka.js"></script>
+</body>
+</html>

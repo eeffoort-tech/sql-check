@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход в систему</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="login.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔐 Вход в систему</h1>
+            <p class="subtitle">Подключитесь к серверу и введите данные</p>
+        </header>
+
+        <main>
+            <div class="input-section">
+                <!-- Подключение к серверу -->
+                <div class="connection-step">
+                    <h3>Шаг 1: Подключение к серверу</h3>
+                    <label for="ipInput">IP-адрес сервера:</label>
+                    <div class="ip-input-group">
+                        <input
+                            type="text"
+                            id="ipInput"
+                            placeholder="192.168.1.100"
+                            autocomplete="off"
+                        >
+                        <span class="port-hint">:8080/query?sql=...</span>
+                    </div>
+
+                    <!-- История подключений -->
+                    <div id="connectionHistory" class="connection-history" style="display: none;">
+                        <div class="history-label">📋 Последние подключения:</div>
+                        <div id="historyList" class="history-list"></div>
+                    </div>
+
+                    <div class="button-group">
+                        <button id="connectBtn" class="btn btn-primary">
+                            <span class="btn-icon">🔍</span> Подключиться
+                        </button>
+                        <button id="clearBtn" class="btn btn-ghost">
+                            Очистить
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Статус подключения -->
+                <div class="status-section" id="statusSection" style="display: none;">
+                    <div class="status-header">
+                        <span class="status-indicator" id="statusIcon"></span>
+                        <span class="status-text" id="statusText"></span>
+                    </div>
+                    <div class="status-details" id="statusDetails"></div>
+                </div>
+
+                <!-- Авторизация (неактивна до подключения) -->
+                <div class="auth-step" id="authStep" disabled>
+                    <h3>Шаг 2: Авторизация</h3>
+                    <div class="form-group">
+                        <label for="userIdInput">ID сотрудника:</label>
+                        <input
+                            type="text"
+                            id="userIdInput"
+                            placeholder="Введите ID"
+                            disabled
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="passwordInput">Пароль:</label>
+                        <input
+                            type="password"
+                            id="passwordInput"
+                            placeholder="Введите пароль"
+                            disabled
+                        >
+                    </div>
+
+                    <div class="button-group">
+                        <button id="loginBtn" class="btn btn-secondary" disabled>
+                            <span class="btn-icon">🚪</span> Войти
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-section">
+                <h3>ℹ️ Инструкция</h3>
+                <ol>
+                    <li>Запустите Android-приложение и загрузите базу данных</li>
+                    <li>Убедитесь, что устройство подключено к той же сети</li>
+                    <li>Введите IP-адрес устройства с сервером</li>
+                    <li>Нажмите "Подключиться"</li>
+                    <li>Введите ID и пароль (если требуется)</li>
+                    <li>Нажмите "Войти"</li>
+                </ol>
+                <div class="warning">
+                    ⚠️ Убедитесь, что на устройстве запущен SQL-сервер (не FTP режим)
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+    <script src="login.js"></script>
+</body>
+</html>

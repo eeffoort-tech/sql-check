@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Администратор</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>👑 Панель администратора</h1>
+            <p class="subtitle">Добро пожаловать, <span id="userIdDisplay">---</span></p>
+        </header>
+
+        <main>
+            <div class="admin-section">
+                <div class="server-info-card">
+                    <div class="info-icon">🖥️</div>
+                    <div class="info-content">
+                        <div class="info-label">Сервер</div>
+                        <div class="info-value" id="serverIpDisplay">---</div>
+                    </div>
+                </div>
+
+                <div class="actions-grid">
+                    <button id="goToDatabaseBtn" class="admin-btn">
+                        <div class="admin-btn-icon">🗄️</div>
+                        <div class="admin-btn-title">База данных</div>
+                        <div class="admin-btn-desc">Просмотр и редактирование таблиц</div>
+                    </button>
+
+                    <button id="goToClientsBtn" class="admin-btn">
+                        <div class="admin-btn-icon">👥</div>
+                        <div class="admin-btn-title">Клиенты</div>
+                        <div class="admin-btn-desc">База клиентов</div>
+                    </button>
+
+                    <button id="goToProductsBtn" class="admin-btn">
+                        <div class="admin-btn-icon">📋</div>
+                        <div class="admin-btn-title">Товары</div>
+                        <div class="admin-btn-desc">Справочник товаров</div>
+                    </button>
+
+                    <button class="admin-btn" id="goToWarehouseBtn">
+                        <div class="admin-btn-icon">🏭</div>
+                        <div class="admin-btn-title">Склад</div>
+                        <div class="admin-btn-desc">Учёт товаров на складе</div>
+                    </button>
+
+                    <button class="admin-btn" id="goToPriyomkaBtn">
+                        <div class="admin-btn-icon">📥</div>
+                        <div class="admin-btn-title">Приёмка</div>
+                        <div class="admin-btn-desc">Оформление приёмки товаров</div>
+                    </button>
+
+                    <button class="admin-btn" id="goToEmployeesBtn">
+                        <div class="admin-btn-icon">👤</div>
+                        <div class="admin-btn-title">Сотрудники</div>
+                        <div class="admin-btn-desc">Реестр сотрудников</div>
+                    </button>
+
+                    <button class="admin-btn" id="goToSalaryBtn">
+                        <div class="admin-btn-icon">💰</div>
+                        <div class="admin-btn-title">Моя зарплата</div>
+                        <div class="admin-btn-desc">Информация о зарплате</div>
+                    </button>
+
+                    <button class="admin-btn" id="goToReferenceBtn">
+                        <div class="admin-btn-icon">📚</div>
+                        <div class="admin-btn-title">Справочник</div>
+                        <div class="admin-btn-desc">Общие справочники</div>
+                    </button>
+
+                    <button id="goToReportsBtn" class="admin-btn">
+                        <div class="admin-btn-icon">📊</div>
+                        <div class="admin-btn-title">Отчёты</div>
+                        <div class="admin-btn-desc">Статистика и отчёты</div>
+                    </button>
+
+                    <button id="logoutBtn" class="admin-btn admin-btn-danger">
+                        <div class="admin-btn-icon">🚪</div>
+                        <div class="admin-btn-title">Выйти</div>
+                        <div class="admin-btn-desc">Выйти из системы</div>
+                    </button>
+                </div>
+            </div>
+
+            <div class="info-section">
+                <h3>ℹ️ Информация</h3>
+                <p>Вы вошли как администратор. У вас есть полный доступ к базе данных.</p>
+            </div>
+        </main>
+    </div>
+
+    <script src="admin.js"></script>
+</body>
+</html>

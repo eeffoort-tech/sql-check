@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Справочник</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="sql-editor.css">
+    <link rel="stylesheet" href="guide.css">
+</head>
+<body>
+    <div class="container guide-container">
+        <header class="editor-header">
+            <div class="header-top">
+                <h1>📚 Справочник</h1>
+                <button id="backBtn" class="btn btn-ghost btn-small">← Назад</button>
+            </div>
+        </header>
+
+        <main>
+            <div id="guideSection" class="editor-section">
+                <div class="guide-toolbar">
+                    <button id="addRecordBtn" class="btn btn-primary btn-small">+ Добавить запись</button>
+                    <button id="refreshBtn" class="btn btn-secondary btn-small">🔄 Обновить</button>
+                    <input type="text" id="searchInput" placeholder="Поиск..." class="guide-search-input">
+                </div>
+
+                <div class="guide-table-wrapper" id="guideTableContainer">
+                    <div class="loading-message">Загрузка данных...</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+    <script src="guide.js"></script>
+
+    <!-- Модальное окно просмотра изображения -->
+    <div id="imageFullview" class="image-fullview">
+        <span class="image-fullview-close">×</span>
+        <img src="" alt="">
+    </div>
+</body>
+</html>

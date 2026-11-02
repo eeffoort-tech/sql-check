@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQL Редактор таблиц</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="sql-editor.css">
+</head>
+<body>
+    <div class="container">
+        <header class="editor-header">
+            <div class="header-top">
+                <h1>📊 SQL Редактор</h1>
+                <button id="backBtn" class="btn btn-ghost btn-small">
+                    ← Назад
+                </button>
+            </div>
+            
+            <div class="server-info">
+                <span class="server-label">Сервер:</span>
+                <span id="serverIp" class="server-ip">???</span>
+                <button id="changeServerBtn" class="btn btn-ghost btn-tiny">Изменить</button>
+            </div>
+        </header>
+
+        <main>
+            <!-- Список таблиц -->
+            <div id="tablesListSection" class="editor-section">
+                <div class="tables-header">
+                    <h2>📁 Таблицы базы данных</h2>
+                    <button id="addTableBtn" class="btn btn-tertiary btn-small">📄 Новая таблица</button>
+                </div>
+                <div class="table-stats" id="tableStats"></div>
+                <div class="table-grid" id="tableGrid">
+                    <div class="loading-message">Загрузка таблиц...</div>
+                </div>
+            </div>
+
+            <!-- Просмотр/редактирование таблицы -->
+            <div id="tableEditorSection" class="editor-section" style="display: none;">
+                <div class="editor-toolbar">
+                    <button id="backToTables" class="btn btn-ghost btn-small">← К таблицам</button>
+                    <h2 id="currentTableName">Таблица</h2>
+                    <span id="recordCount" class="record-count"></span>
+                </div>
+
+                <!-- Панель инструментов -->
+                <div class="toolbar-actions">
+                    <button id="addRecordBtn" class="btn btn-primary btn-small">+ Добавить запись</button>
+                    <button id="addColumnBtn" class="btn btn-secondary btn-small">+ Добавить колонку</button>
+                    <button id="editHeadersBtn" class="btn btn-secondary btn-small">✏️ Редактировать заголовки</button>
+                    <button id="refreshBtn" class="btn btn-secondary btn-small">🔄 Обновить</button>
+                    <button id="executeSqlBtn" class="btn btn-tertiary btn-small">⚡ SQL запрос</button>
+                </div>
+
+                <!-- Форма выполнения SQL -->
+                <div id="sqlFormContainer" class="sql-form-container" style="display: none;">
+                    <h3>Выполнить SQL-запрос:</h3>
+                    <textarea id="sqlInput" placeholder="SELECT * FROM table_name LIMIT 100" rows="3"></textarea>
+                    
+                    <div class="sql-quick-actions">
+                        <span style="color: #a0a0c0; font-size: 0.9rem; font-weight: 600;">Быстрые действия:</span>
+                        <button type="button" id="replaceCommaDot" class="btn btn-secondary btn-tiny">🔧 Заменить запятые на точки (koli)</button>
+                    </div>
+                    
+                    <div class="sql-form-actions">
+                        <button id="executeSqlQuery" class="btn btn-primary btn-small">▶ Выполнить</button>
+                        <button id="cancelSqlForm" class="btn btn-ghost btn-small">Отмена</button>
+                    </div>
+                    <div id="sqlResult" class="sql-result" style="display: none;"></div>
+                </div>
+
+                <!-- Контейнер для данных таблицы -->
+                <div class="table-container" id="tableContainer">
+                    <div class="loading-message">Загрузка данных...</div>
+                </div>
+
+                <!-- Модальное окно добавления/редактирования -->
+                <div id="recordModal" class="modal" style="display: none;">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3 id="modalTitle">Добавить запись</h3>
+                            <button id="closeModal" class="btn btn-ghost btn-tiny">×</button>
+                        </div>
+                        <form id="recordForm">
+                            <div id="formFields"></div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary">💾 Сохранить</button>
+                                <button type="button" id="cancelForm" class="btn btn-ghost">Отмена</button>
+                            </div>
+                </form>
+                    </div>
+                </div>
+
+                <!-- Модальное окно редактирования заголовков -->
+                <div id="editHeadersModal" class="modal" style="display: none;">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>Редактировать заголовки</h3>
+                            <button id="closeEditHeadersModal" class="btn btn-ghost btn-tiny">×</button>
+                        </div>
+                        <form id="editHeadersForm">
+                            <div id="headersFields"></div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary">💾 Сохранить</button>
+                                <button type="button" id="cancelEditHeaders" class="btn btn-ghost">Отмена</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Модальное окно добавления колонки -->
+                <div id="addColumnModal" class="modal" style="display: none;">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>Добавить колонку</h3>
+                            <button id="closeAddColumnModal" class="btn btn-ghost btn-tiny">×</button>
+                        </div>
+                        <form id="addColumnForm">
+                            <div class="form-field">
+                                <label>Имя колонки</label>
+                                <input type="text" name="columnName" placeholder="new_column" required>
+                            </div>
+                            <div class="form-field">
+                                <label>Тип данных</label>
+                                <select name="columnType">
+                                    <option value="TEXT">TEXT</option>
+                                    <option value="INTEGER">INTEGER</option>
+                                    <option value="REAL">REAL</option>
+                                    <option value="BLOB">BLOB</option>
+                                </select>
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary">➕ Добавить</button>
+                                <button type="button" id="cancelAddColumn" class="btn btn-ghost">Отмена</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+
+        <!-- Модальное окно добавления таблицы (вынесено за пределы tableEditorSection) -->
+        <div id="addTableModal" class="modal" style="display: none;">
+            <div class="modal-content" style="max-width: 700px;">
+                <div class="modal-header">
+                    <h3>Создать новую таблицу</h3>
+                    <button id="closeAddTableModal" class="btn btn-ghost btn-tiny">×</button>
+                </div>
+                <form id="addTableForm">
+                    <div class="form-field">
+                        <label>Имя таблицы</label>
+                        <input type="text" name="tableName" placeholder="new_table" required>
+                    </div>
+
+                    <label style="color: #a0a0c0; font-size: 0.9rem; font-weight: 600; display: block; margin: 20px 0 12px;">Колонки:</label>
+                    <div id="tableColumnsContainer">
+                        <!-- Динамические поля для колонок -->
+                    </div>
+
+                    <button type="button" id="addColumnRow" class="btn btn-ghost btn-small" style="margin-bottom: 20px;">
+                        + Добавить колонку
+                    </button>
+
+                    <div style="margin-top: 12px; display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="primaryKeyCheckbox" style="width: 18px; height: 18px; cursor: pointer;">
+                        <label for="primaryKeyCheckbox" style="color: #a0a0c0; font-size: 0.9rem; cursor: pointer; user-select: none;">
+                            Установить первую колонку как PRIMARY KEY (автоматический INTEGER)
+                        </label>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">📄 Создать таблицу</button>
+                        <button type="button" id="cancelAddTable" class="btn btn-ghost">Отмена</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="app.js"></script>
+    <script src="sql-editor.js"></script>
+</body>
+</html>

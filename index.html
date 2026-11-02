@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Проверка SQL подключения</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔌 Проверка SQL подключения</h1>
+            <p class="subtitle">Введите IP-адрес сервера с запущенным SQL-сервером</p>
+        </header>
+
+        <main>
+            <div class="input-section">
+                <label for="ipInput">IP-адрес сервера:</label>
+                <div class="ip-input-group">
+                    <input 
+                        type="text" 
+                        id="ipInput" 
+                        placeholder="192.168.1.100"
+                        autocomplete="off"
+                    >
+                    <span class="port-hint">:8080/query?sql=...</span>
+                </div>
+
+                <!-- История подключений -->
+                <div id="connectionHistory" class="connection-history" style="display: none;">
+                    <div class="history-label">📋 Последние подключения:</div>
+                    <div id="historyList" class="history-list"></div>
+                </div>
+
+                <div class="button-group">
+                    <button id="connectBtn" class="btn btn-primary">
+                        <span class="btn-icon">🔍</span> Проверить подключение
+                    </button>
+                    <button id="testQueryBtn" class="btn btn-secondary" disabled>
+                        <span class="btn-icon">📊</span> Тестовый запрос
+                    </button>
+                    <button id="clearBtn" class="btn btn-ghost">
+                        Очистить
+                    </button>
+                </div>
+
+                <div class="button-group" style="margin-top: 12px;">
+                    <button id="goToTablesBtn" class="btn btn-tertiary" style="width: 100%;" disabled>
+                        <span class="btn-icon">📊</span> К таблицам
+                    </button>
+                </div>
+            </div>
+
+            <div class="status-section" id="statusSection" style="display: none;">
+                <div class="status-header">
+                    <span class="status-indicator" id="statusIcon"></span>
+                    <span class="status-text" id="statusText"></span>
+                </div>
+                <div class="status-details" id="statusDetails"></div>
+            </div>
+
+            <div class="response-section" id="responseSection" style="display: none;">
+                <h3>📋 Результат запроса:</h3>
+                <div class="response-container" id="responseContainer"></div>
+            </div>
+
+            <div class="info-section">
+                <h3>ℹ️ Инструкция</h3>
+                <ol>
+                    <li>Запустите Android-приложение и загрузите базу данных</li>
+                    <li>Убедитесь, что устройство подключено к той же сети</li>
+                    <li>Введите IP-адрес устройства с сервером</li>
+                    <li>Нажмите "Проверить подключение"</li>
+                    <li>При успешном подключении выполните тестовый SQL-запрос</li>
+                </ol>
+                <div class="warning">
+                    ⚠️ Убедитесь, что на устройстве запущен SQL-сервер (не FTP режим)
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

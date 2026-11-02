@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Склад</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="sql-editor.css">
+    <link rel="stylesheet" href="warehouse.css">
+</head>
+<body>
+    <div class="container guide-container">
+        <header class="editor-header">
+            <div class="header-top">
+                <h1>🏭 Склад</h1>
+                <div class="user-info">
+                    <span class="user-id">👤 ID: <strong id="currentUserId">—</strong></span>
+                    <button id="backBtn" class="btn btn-ghost btn-small">← Назад</button>
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <div id="warehouseSection" class="editor-section">
+                <!-- Панель действий -->
+                <div class="guide-toolbar">
+                    <button id="acceptStockBtn" class="btn btn-primary btn-small">📦 Принять на склад</button>
+                    <button id="sdelanoBtn" class="btn btn-success btn-small">✅ Сделано</button>
+                    <button id="tasksBtn" class="btn btn-info btn-small" style="background:linear-gradient(135deg,#00b894,#00cec9);">📋 Задачи</button>
+                    <button id="createOrderBtn" class="btn btn-warning btn-small" style="background:linear-gradient(135deg,#f39c12,#e67e22);">📝 Создать заказ</button>
+                    <button id="clearPlanBtn" class="btn btn-danger btn-small" style="background:linear-gradient(135deg,#e74c3c,#c0392b);">🗑️ Очистить план</button>
+                    <button id="refreshBtn" class="btn btn-secondary btn-small">🔄 Обновить</button>
+                    <button id="massUploadBtn" class="btn btn-tertiary btn-small" style="background:linear-gradient(135deg,#8b5cf6,#6366f1);">📦 Массовая загрузка</button>
+                    <button id="columnsBtn" class="btn btn-ghost btn-small">⚙️ Колонки</button>
+                    <input type="text" id="searchInput" placeholder="Поиск..." class="guide-search-input">
+                </div>
+
+                <div class="guide-table-wrapper" id="warehouseTableContainer">
+                    <div class="loading-message">Загрузка данных...</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Модальное окно настройки колонок -->
+    <div id="columnsModal" class="warehouse-modal" style="display: none;">
+        <div class="warehouse-modal-overlay"></div>
+        <div class="warehouse-modal-content">
+            <div class="warehouse-modal-header">
+                <h3>⚙️ Настройка колонок</h3>
+                <button class="btn-modal-close">×</button>
+            </div>
+            <div class="warehouse-modal-body">
+                <div id="columnsList" class="columns-list"></div>
+            </div>
+            <div class="warehouse-modal-footer">
+                <button id="saveColumnsBtn" class="btn btn-primary">💾 Сохранить</button>
+                <button id="resetColumnsBtn" class="btn btn-ghost">Сбросить</button>
+                <button id="closeColumnsBtn" class="btn btn-ghost">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно "Создать заказ" -->
+    <div id="createOrderModal" class="warehouse-modal" style="display: none;">
+        <div class="warehouse-modal-overlay"></div>
+        <div class="warehouse-modal-content" style="max-width: 900px;">
+            <div class="warehouse-modal-header">
+                <h3>📝 Создание заказа <span id="orderNomer" style="color:#8b5cf6;"></span></h3>
+                <button class="btn-modal-close">×</button>
+            </div>
+            <div class="warehouse-modal-body">
+                <!-- Спиннер загрузки -->
+                <div id="createOrderLoading" class="create-order-loading" style="display:none;">
+                    <div class="loading-spinner"></div>
+                    <span class="loading-text">Обновление данных...</span>
+                </div>
+
+                <div id="createOrderContent" style="display:block;">
+                <div class="guide-toolbar" style="margin-bottom:12px;">
+                    <button id="showAllOrdersFromCreateBtn" class="btn btn-ghost btn-small">📋 Все заказы</button>
+                    <button id="showTodayPlanBtn" class="btn btn-ghost btn-small" style="background:rgba(52,152,219,0.3);border-color:rgba(52,152,219,0.5);">📋 План на сегодня: <strong id="todayPlanNomer">—</strong> (<span id="todayPlanCount">0</span> товаров)</button>
+                </div>
+                <p style="color:#a0a0c0;margin-bottom:16px;">Проверьте товары перед сохранением:</p>
+                <div class="accept-results-table-wrapper" style="max-height:400px;">
+                    <table class="accept-results-table">
+                        <thead>
+                            <tr>
+                                <th>Код</th>
+                                <th>Артикул</th>
+                                <th>Количество</th>
+                            </tr>
+                        </thead>
+                        <tbody id="orderItemsBody">
+                        </tbody>
+                    </table>
+                </div>
+                <div id="orderEmptyMsg" style="text-align:center;padding:20px;color:#a0a0c0;display:none;">Нет товаров для заказа</div>
+                </div>
+            </div>
+            <div class="warehouse-modal-footer">
+                <button id="saveOrderBtn" class="btn btn-primary">📦 Создать заказ</button>
+                <button id="saveAsDraftBtn" class="btn btn-warning btn-small" style="background:linear-gradient(135deg,#f39c12,#e67e22);">💾 Сохранить как черновик</button>
+                <button id="cancelOrderBtn" class="btn btn-ghost">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно сортировки -->
+    <div id="sortModal" class="warehouse-modal" style="display: none;">
+        <div class="warehouse-modal-overlay"></div>
+        <div class="warehouse-modal-content" style="max-width: 400px;">
+            <div class="warehouse-modal-header">
+                <h3>📋 Сортировка</h3>
+                <button class="btn-modal-close">×</button>
+            </div>
+            <div class="warehouse-modal-body">
+                <div class="form-group">
+                    <label>Сортировка</label>
+                    <input type="text" id="sortInput" list="sortList" placeholder="Введите или выберите...">
+                    <datalist id="sortList"></datalist>
+                </div>
+            </div>
+            <div class="warehouse-modal-footer">
+                <button id="sortOkBtn" class="btn btn-primary">Ок</button>
+                <button id="sortCancelBtn" class="btn btn-ghost">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно просмотра изображения -->
+    <div id="imageFullview" class="image-fullview">
+        <img id="fullviewImg" src="" alt="">
+    </div>
+
+    <!-- Модальное окно принятия на склад -->
+    <div id="acceptStockModal" class="warehouse-modal" style="display: none;">
+        <div class="warehouse-modal-overlay"></div>
+        <div class="warehouse-modal-content" style="max-width: 700px;">
+            <div class="warehouse-modal-header">
+                <h3>📦 Принять на склад</h3>
+                <button class="btn-modal-close">×</button>
+            </div>
+            <div class="warehouse-modal-body">
+                <div class="accept-stock-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Код магазина (ШК)</label>
+                            <div style="display:flex;gap:8px;align-items:center;">
+                                <input type="text" id="acceptShopCode" placeholder="Введите код магазина..." style="flex:1;">
+                                <button id="clearShopCodeBtn" class="btn btn-ghost btn-small" type="button" style="padding:6px 10px;font-size:1.2rem;color:#a0a0c0;" title="Очистить">×</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <div class="form-actions">
+                                <button id="checkShk" class="btn btn-primary btn-small">🔍 Проверить</button>
+                                <button id="acceptWithoutShk" class="btn btn-secondary btn-small">➕ Без ШК</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="acceptResults" class="accept-results" style="display: none;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <h4 style="margin:0;">Результаты поиска:</h4>
+                        <button id="clearAcceptResultsBtn" class="btn btn-ghost btn-small" style="color:#e74c3c;">🗑️ Очистить всё</button>
+                    </div>
+                    <div class="accept-results-table-wrapper">
+                        <table class="accept-results-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:70px;"></th>
+                                    <th>Наш код</th>
+                                    <th>Артикул</th>
+                                    <th>Количество</th>
+                                    <th>Ед.изм.</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="acceptResultsBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="warehouse-modal-footer">
+                <button id="acceptStockBtnFooter" class="btn btn-primary">✅ Принять на склад</button>
+                <button id="closeAcceptModal" class="btn btn-ghost">Закрыть</button>
+                <div class="spacer"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно добавления без ШК -->
+    <div id="addWithoutShkModal" class="warehouse-modal" style="display: none;">
+        <div class="warehouse-modal-overlay"></div>
+        <div class="warehouse-modal-content" style="max-width: 500px;">
+            <div class="warehouse-modal-header">
+                <h3>➕ Добавить без ШК</h3>
+                <button class="btn-modal-close">×</button>
+            </div>
+            <div class="warehouse-modal-body">
+                <div class="accept-stock-form">
+                    <div class="form-row">
+                        <div class="form-group form-row-input">
+                            <label>Код</label>
+                            <input type="text" id="manualKod" placeholder="Введите код...">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group form-row-input">
+                            <label>Категория</label>
+                            <select id="manualCategory">
+                                <option value="" disabled selected hidden></option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group form-row-input">
+                            <label>Артикул</label>
+                            <select id="manualArt">
+                                <option value="" disabled selected hidden></option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row" style="gap: 12px;">
+                        <div class="form-group form-row-input" style="flex: 1;">
+                            <label>Количество</label>
+                            <input type="number" id="manualQty" min="0" value="" placeholder="Введите количество...">
+                        </div>
+                        <div class="form-group form-row-input" style="flex: 1;">
+                            <label>Ед.изм.</label>
+                            <input type="text" id="manualUnit" placeholder="шт" readonly>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="warehouse-modal-footer">
+                <button id="manualAddBtn" class="btn btn-primary">➕ Добавить</button>
+                <button id="manualCancelBtn" class="btn btn-ghost">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно поиска по ШК -->
+    <div id="shkSearchModal" class="warehouse-modal" style="display: none;">
+        <div class="warehouse-modal-overlay"></div>
+        <div class="warehouse-modal-content" style="max-width: 800px;">
+            <div class="warehouse-modal-header">
+                <h3>🔍 Поиск по ШК</h3>
+                <button class="btn-modal-close">×</button>
+            </div>
+            <div class="warehouse-modal-body">
+                <div class="accept-stock-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Введите код магазина</label>
+                            <input type="text" id="shkSearchInput" placeholder="Начните вводить код...">
+                        </div>
+                    </div>
+                </div>
+
+                <div id="shkSearchResults" class="accept-results" style="display: none;">
+                    <h4>Результаты поиска в prihod:</h4>
+                    <div class="accept-results-table-wrapper">
+                        <table class="accept-results-table">
+                            <thead>
+                                <tr>
+                                    <th>Код магазина</th>
+                                    <th>Наш код</th>
+                                    <th>Артикул</th>
+                                    <th>Количество</th>
+                                    <th>Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody id="shkSearchResultsBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="warehouse-modal-footer">
+                <button id="shkAddSelectedBtn" class="btn btn-primary" disabled>➕ Добавить выбранное</button>
+                <button id="shkCancelBtn" class="btn btn-ghost">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно "Не найдено" -->
+    <div id="notFoundModal" class="warehouse-modal" style="display: none;">
+        <div class="warehouse-modal-overlay"></div>
+        <div class="warehouse-modal-content" style="max-width: 500px;">
+            <div class="warehouse-modal-header">
+                <h3>❌ Не найдено</h3>
+                <button class="btn-modal-close">×</button>
+            </div>
+            <div class="warehouse-modal-body">
+                <div class="accept-stock-form">
+                    <div class="form-row">
+                        <div class="form-group form-row-input">
+                            <label>Ненайденный код</label>
+                            <input type="text" id="notFoundCode" readonly>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group form-row-input">
+                            <label>Код</label>
+                            <input type="text" id="notFoundKod" placeholder="Введите код...">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group form-row-input">
+                            <label>Категория</label>
+                            <select id="notFoundCategory">
+                                <option value="" disabled selected hidden></option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group form-row-input">
+                            <label>Артикул</label>
+                            <select id="notFoundArt">
+                                <option value="" disabled selected hidden></option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row" style="gap: 12px;">
+                        <div class="form-group form-row-input" style="flex: 1;">
+                            <label>Количество</label>
+                            <input type="number" id="notFoundQty" min="0" value="" placeholder="Введите количество...">
+                        </div>
+                        <div class="form-group form-row-input" style="flex: 1;">
+                            <label>Ед.изм.</label>
+                            <input type="text" id="notFoundUnit" placeholder="шт" readonly>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="warehouse-modal-footer">
+                <button id="notFoundAssignBtn" class="btn btn-primary">Присвоить</button>
+                <button id="notFoundCancelBtn" class="btn btn-ghost">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно списка заказов -->
+    <div id="ordersModal" class="warehouse-modal" style="display: none;">
+        <div class="warehouse-modal-overlay"></div>
+        <div class="warehouse-modal-content" style="max-width: 800px;">
+            <div class="warehouse-modal-header">
+                <h3>📋 Заказы</h3>
+                <button class="btn-modal-close">×</button>
+            </div>
+            <div class="warehouse-modal-body">
+                <div class="guide-toolbar" style="margin-bottom:12px;">
+                    <button id="showAllDraftsBtn" class="btn btn-ghost btn-small">📋 Все черновики</button>
+                </div>
+                <div class="drafts-list-wrapper" style="max-height:500px; overflow-y:auto;">
+                    <table class="accept-results-table">
+                        <thead>
+                            <tr>
+                                <th>Тип</th>
+                                <th>Номер</th>
+                                <th>Дата</th>
+                                <th>Автор</th>
+                                <th style="width:60px;">Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ordersListBody">
+                        </tbody>
+                    </table>
+                </div>
+                <div id="ordersEmptyMsg" style="text-align:center;padding:20px;color:#a0a0c0;display:none;">Нет заказов</div>
+            </div>
+            <div class="warehouse-modal-footer">
+                <button id="closeOrdersBtn" class="btn btn-ghost">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно всех черновиков -->
+    <div id="allDraftsModal" class="warehouse-modal" style="display: none;">
+        <div class="warehouse-modal-overlay"></div>
+        <div class="warehouse-modal-content" style="max-width: 800px;">
+            <div class="warehouse-modal-header">
+                <h3>📋 Все черновики</h3>
+                <button class="btn-modal-close">×</button>
+            </div>
+            <div class="warehouse-modal-body">
+                <div class="drafts-list-wrapper" style="max-height:500px; overflow-y:auto;">
+                    <table class="accept-results-table">
+                        <thead>
+                            <tr>
+                                <th>Номер</th>
+                                <th>Дата</th>
+                                <th>Автор</th>
+                                <th style="width:60px;">Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody id="allDraftsListBody">
+                        </tbody>
+                    </table>
+                </div>
+                <div id="allDraftsEmptyMsg" style="text-align:center;padding:20px;color:#a0a0c0;display:none;">Нет черновиков</div>
+            </div>
+            <div class="warehouse-modal-footer">
+                <button id="closeAllDraftsBtn" class="btn btn-ghost">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно редактирования черновика -->
+    <div id="editDraftModal" class="warehouse-modal" style="display: none;">
+        <div class="warehouse-modal-overlay"></div>
+        <div class="warehouse-modal-content" style="max-width: 900px;">
+            <div class="warehouse-modal-header">
+                <h3><span id="editDraftHeaderTitle">✏️ Редактирование</span> <span id="editDraftNomer" style="color:#8b5cf6;"></span></h3>
+                <button class="btn-modal-close">×</button>
+            </div>
+            <div class="warehouse-modal-body">
+                <div class="accept-results-table-wrapper" style="max-height:500px;">
+                    <table class="accept-results-table">
+                        <thead>
+                            <tr>
+                                <th>Код</th>
+                                <th>Артикул</th>
+                                <th>Количество</th>
+                                <th style="width:50px;" id="editDraftDeleteCol"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="editDraftItemsBody">
+                        </tbody>
+                    </table>
+                </div>
+                <div id="editDraftEmptyMsg" style="text-align:center;padding:20px;color:#a0a0c0;display:none;">Нет товаров</div>
+            </div>
+            <div class="warehouse-modal-footer">
+                <button id="createOrderFromDraftBtn" class="btn btn-success" style="display:none;">📦 Создать заказ</button>
+                <button id="deleteAllBtn" class="btn btn-danger" style="display:none;">🗑️ Удалить всё</button>
+                <button id="saveDraftBtn" class="btn btn-primary" style="display:none;">💾 Сохранить</button>
+                <button id="cancelEditDraftBtn" class="btn btn-ghost">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно поиска по prihod -->
+    <div id="prikhodSearchModal" class="warehouse-modal" style="display: none;">
+        <div class="warehouse-modal-overlay"></div>
+        <div class="warehouse-modal-content" style="max-width: 800px;">
+            <div class="warehouse-modal-header">
+                <h3>🔍 Поиск по prihod</h3>
+                <button class="btn-modal-close">×</button>
+            </div>
+            <div class="warehouse-modal-body">
+                <div class="accept-stock-form">
+                    <div class="form-row">
+                        <div class="form-group form-row-input">
+                            <label>Код магазина (ШК)</label>
+                            <input type="text" id="prikhodShopCode" placeholder="Введите код магазина...">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <div class="form-actions">
+                                <button id="prikhodSearchBtn" class="btn btn-primary btn-small">🔍 Найти</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="prikhodResults" class="accept-results" style="display: none;">
+                    <h4>Результаты поиска:</h4>
+                    <div class="accept-results-table-wrapper">
+                        <table class="accept-results-table">
+                            <thead>
+                                <tr>
+                                    <th>Наш код</th>
+                                    <th>Код магазина</th>
+                                    <th>Количество</th>
+                                    <th style="width:60px;">Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody id="prikhodResultsBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="warehouse-modal-footer">
+                <button id="closePrikhodBtn" class="btn btn-ghost">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно "Задачи" -->
+    <div id="tasksModal" class="warehouse-modal" style="display: none;">
+        <div class="warehouse-modal-overlay"></div>
+        <div class="warehouse-modal-content warehouse-tasks-content">
+            <div class="warehouse-modal-header">
+                <h3>📋 Задачи</h3>
+                <button class="btn-modal-close">×</button>
+            </div>
+            <div class="warehouse-modal-body">
+                <!-- Вкладки -->
+                <div class="tasks-tabs">
+                    <button class="task-tab active" data-tab="rashodnik">Расходник</button>
+                    <button class="task-tab" data-tab="upakovka">Упаковка</button>
+                    <button class="task-tab" data-tab="vnutriceh">Внутрицех</button>
+                </div>
+
+                <!-- Индикатор загрузки -->
+                <div id="tasksLoading" class="tasks-loading" style="display:none;">
+                    <div class="loading-spinner"></div>
+                    <span class="loading-text">Загрузка данных...</span>
+                </div>
+
+                <!-- Списки по вкладкам -->
+                <div id="tasksContent" style="display:none;">
+                    <div id="taskLists">
+                        <div class="task-list-section" data-tab="rashodnik">
+                            <div class="task-list-header">
+                                <span class="task-list-title">Расходник</span>
+                                <span class="task-list-count" id="rashodnikCount">0</span>
+                            </div>
+                            <div class="task-list-wrapper" id="rashodnikList"></div>
+                        </div>
+                        <div class="task-list-section" data-tab="upakovka">
+                            <div class="task-list-header">
+                                <span class="task-list-title">Упаковка</span>
+                                <span class="task-list-count" id="upakovkaCount">0</span>
+                            </div>
+                            <div class="task-list-wrapper" id="upakovkaList"></div>
+                        </div>
+                        <div class="task-list-section" data-tab="vnutriceh">
+                            <div class="task-list-header">
+                                <span class="task-list-title">Внутрицех</span>
+                                <span class="task-list-count" id="vnutricehCount">0</span>
+                            </div>
+                            <div class="task-list-wrapper" id="vnutricehList"></div>
+                        </div>
+                    </div>
+
+                    <div id="tasksEmptyMsg" style="text-align:center;padding:20px;color:#a0a0c0;display:none;">Нет задач</div>
+
+                    <!-- Кнопка "Добавить" -->
+                    <div class="tasks-add-section">
+                        <div class="tasks-add-inline" id="tasksAddInline" style="display:none;">
+                            <input type="text" id="tasksAddInput" placeholder="Введите название задачи..." class="tasks-add-input">
+                            <button id="tasksAddConfirm" class="btn btn-primary btn-small">✓</button>
+                            <button id="tasksAddCancel" class="btn btn-ghost btn-small">✕</button>
+                        </div>
+                        <button id="tasksAddBtn" class="btn btn-ghost btn-small">➕ Добавить задачу</button>
+                    </div>
+                </div>
+            </div>
+            <div class="warehouse-modal-footer">
+                <button id="closeTasksBtn" class="btn btn-ghost">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно просмотра файла -->
+    <div id="massViewFileModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; z-index:9999; background:rgba(0,0,0,0.7);">
+        <div style="position:relative; margin:50px auto; max-width:900px; max-height:85vh; overflow-y:auto; background:linear-gradient(135deg, #1a1a2e, #16213e); border:1px solid rgba(255,255,255,0.15); border-radius:16px; padding:28px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <h3 style="margin:0;">📄 Содержимое файла</h3>
+                <button id="closeViewFileX" class="btn-modal-close" style="font-size:1.5rem; cursor:pointer; color:#a0a0c0; background:none; border:none;">×</button>
+            </div>
+            <div style="margin-bottom:12px;">
+                <input type="text" id="viewFileSearch" placeholder="🔍 Поиск по содержимому файла..." style="width:calc(100% - 40px); padding:8px 12px; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff; font-size:0.95rem; margin-right:8px;">
+                <button id="viewFileSearchClear" class="btn btn-ghost btn-tiny" style="display:none;">×</button>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; margin-bottom:16px;">
+                <div>
+                    <label style="display:block; font-size:0.85rem; color:#a0a0c0; margin-bottom:4px;">Колонка 1</label>
+                    <select id="viewCol1" style="width:100%; padding:6px 8px; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.9rem; cursor:pointer;"></select>
+                </div>
+                <div>
+                    <label style="display:block; font-size:0.85rem; color:#a0a0c0; margin-bottom:4px;">Колонка 2</label>
+                    <select id="viewCol2" style="width:100%; padding:6px 8px; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.9rem; cursor:pointer;"></select>
+                </div>
+                <div>
+                    <label style="display:block; font-size:0.85rem; color:#a0a0c0; margin-bottom:4px;">Колонка 3</label>
+                    <select id="viewCol3" style="width:100%; padding:6px 8px; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.9rem; cursor:pointer;"></select>
+                </div>
+            </div>
+            <div style="max-height:400px; overflow:auto; border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:8px;">
+                <table id="viewFileTable" style="width:100%; border-collapse:collapse;">
+                    <thead>
+                        <tr>
+                            <th id="viewCol1Header" style="width:33%; padding:8px; background:rgba(139,92,246,0.15); border-bottom:1px solid rgba(255,255,255,0.1);">
+                                <label style="display:block; font-size:0.85rem; color:#a0a0c0;">Колонка 1</label>
+                            </th>
+                            <th id="viewCol2Header" style="width:33%; padding:8px; background:rgba(139,92,246,0.15); border-bottom:1px solid rgba(255,255,255,0.1); display:none;">
+                                <label style="display:block; font-size:0.85rem; color:#a0a0c0;">Колонка 2</label>
+                            </th>
+                            <th id="viewCol3Header" style="width:33%; padding:8px; background:rgba(139,92,246,0.15); border-bottom:1px solid rgba(255,255,255,0.1); display:none;">
+                                <label style="display:block; font-size:0.85rem; color:#a0a0c0;">Колонка 3</label>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="viewFileBody" style="background:rgba(0,0,0,0.1);"></tbody>
+                </table>
+            </div>
+            <div style="margin-top:20px; text-align:right;">
+                <button id="closeViewFileBtn" class="btn btn-ghost" style="padding:8px 20px;">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="warehouse.js"></script>
+
+    <!-- Модальное окно массовой загрузки -->
+    <div id="massUploadModal" class="warehouse-modal" style="display: none;">
+        <div class="warehouse-modal-overlay"></div>
+        <div class="warehouse-modal-content" style="max-width: 800px;">
+            <div class="warehouse-modal-header">
+                <h3>📦 Массовая загрузка товаров</h3>
+                <button class="btn-modal-close" id="closeMassUploadX">×</button>
+            </div>
+            <div class="warehouse-modal-body">
+                <!-- Предупреждение о дубликате (скрыто по умолчанию) -->
+                <div id="massDuplicateWarning" class="duplicate-warning" style="display: none;">
+                    <div class="warning-icon">⚠️</div>
+                    <div class="warning-content">
+                        <div class="warning-title" id="massDuplicateWarningTitle"></div>
+                        <div class="warning-text" id="massDuplicateWarningText"></div>
+                        <button id="massDuplicateConfirmBtn" class="btn btn-secondary btn-small" style="margin-top: 12px;">
+                            ✅ Да, я знаю, загружаю дубликат
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Чекбоксы настройки дубликатов (видны на шаге 1 и при сбросе) -->
+                <div id="massDuplicateSettings" class="duplicate-settings">
+                    <h3>🛡️ Настройки проверки дубликатов</h3>
+                    <label class="checkbox-item">
+                        <input type="checkbox" id="massChkCheckByName" checked>
+                        <span>Проверять по имени файла (сегодня)</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" id="massChkCheckByFileDate" checked>
+                        <span>Проверять по дате создания файла</span>
+                    </label>
+                </div>
+
+                <!-- ШАГ 1: Загрузка файла -->
+                <div id="massStep1" class="mass-upload-section">
+                    <div id="dropZone" class="drop-zone">
+                        <div class="drop-zone-icon">📂</div>
+                        <div class="drop-zone-text">Перетащите файл (CSV, Excel) сюда или</div>
+                        <label for="massFileInput" class="btn btn-primary">Выбрать файл</label>
+                        <input type="file" id="massFileInput" accept=".csv,.txt,.tsv,.xlsx,.xls" hidden>
+                    </div>
+                    <div id="massFileName" class="file-name" style="display: none;">
+                        <span class="file-icon">📄</span>
+                        <span class="file-name-text"></span>
+                        <button id="massRemoveFile" class="btn btn-ghost btn-tiny">×</button>
+                    </div>
+
+                    <div style="margin-top: 12px; text-align: center;">
+                        <button id="massManageProfilesBtn" class="btn btn-ghost btn-small">⚙️ Настройки поиска</button>
+                    </div>
+                </div>
+
+                <!-- ШАГ 2: Настройка колонок -->
+                <div id="massStep2" class="mass-upload-section" style="display: none;">
+                    <p class="step-desc">Выберите колонки из заголовков файла:</p>
+                    <div id="massStoreInfo" class="selected-store-info" style="display: none; margin-bottom: 12px;">
+                        <span class="store-badge">🏪 <span class="store-name"></span></span>
+                    </div>
+                    <div class="column-selectors">
+                        <div class="form-field">
+                            <label>Колонка с кодом товара <span class="required">*</span></label>
+                            <select id="massKodColumnSelect" required>
+                                <option value="">— Выберите —</option>
+                            </select>
+                        </div>
+                        <div class="form-field">
+                            <label>Колонка с количеством</label>
+                            <select id="massQtyColumnSelect">
+                                <option value="">Нет (по умолчанию = 1)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="step-actions">
+                        <button id="massAnalyzeBtn" class="btn btn-primary">▶ Анализировать</button>
+                        <button id="massCancelStep2" class="btn btn-ghost">← Назад</button>
+                    </div>
+                </div>
+
+                <!-- ШАГ 3: Результат -->
+                <div id="massStep3" class="mass-upload-section" style="display: none;">
+                    <div class="stats-bar">
+                        <div class="stat-item">
+                            <span class="stat-label">Всего строк:</span>
+                            <span class="stat-value" id="massTotalRows">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Найдено в базе:</span>
+                            <span class="stat-value found" id="massFoundRows">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Не найдено:</span>
+                            <span class="stat-value not-found" id="massNotFoundRows">0</span>
+                        </div>
+                        <div class="stat-item stat-item-action">
+                            <button id="massViewFileBtn" class="btn btn-ghost btn-small">📄 Посмотреть файл</button>
+                        </div>
+                    </div>
+
+                    <div id="massBlockWarning" class="block-warning" style="display: none; margin-top:12px;">
+                        <div class="warning-icon">⚠️</div>
+                        <div class="warning-content">
+                            <div class="warning-title"></div>
+                            <div class="warning-text"></div>
+                            <button id="massForceContinueBtn" class="btn btn-secondary btn-small" style="margin-top: 12px;">
+                                ✅ Да, я знаю, продолжить
+                            </button>
+                        </div>
+                    </div>
+                    <div id="massConflictWarning" class="conflict-warning" style="display: none; margin-top:12px;">
+                        <div class="warning-icon">🔴</div>
+                        <div class="warning-content">
+                            <div class="warning-title">Обнаружен конфликт!</div>
+                            <div class="warning-text">Один товар соответствует нескольким вражеским кодам.</div>
+                            <button id="massResolveConflictBtn" class="btn btn-danger btn-small" style="margin-top: 12px;">
+                                🔧 Разрешить конфликт
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Модалка разрешения конфликтов -->
+                    <div id="massConflictModal" class="warehouse-modal" style="display: none;">
+                        <div class="warehouse-modal-overlay"></div>
+                        <div class="warehouse-modal-content" style="max-width:800px;">
+                            <div class="warehouse-modal-header">
+                                <h3>🔧 Разрешение конфликтов</h3>
+                                <button class="btn-modal-close" id="closeMassConflictX">×</button>
+                            </div>
+                            <div class="warehouse-modal-body" style="max-height:500px; overflow:auto;">
+                                <div id="massConflictsList" style="display:flex; flex-direction:column; gap:16px;"></div>
+                            </div>
+                            <div class="warehouse-modal-footer">
+                                <button id="saveMassConflictBtn" class="btn btn-primary">💾 Сохранить</button>
+                                <button id="closeMassConflictBtn" class="btn btn-ghost">Отмена</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Модалка присвоения -->
+                    <div id="massAssignModal" class="warehouse-modal" style="display: none;">
+                        <div class="warehouse-modal-overlay"></div>
+                        <div class="warehouse-modal-content" style="max-width: 900px;">
+                            <div class="warehouse-modal-header">
+                                <h3>🔗 Присвоить товар</h3>
+                                <button class="btn-modal-close" id="closeMassAssignX">×</button>
+                            </div>
+                            <div class="warehouse-modal-body">
+                                <div style="display:flex; gap:20px; align-items:flex-start;">
+                                    <!-- Слева форма -->
+                                    <div style="flex:1;">
+                                        <div style="margin-bottom:16px; padding:12px; background:rgba(139,92,246,0.1); border-radius:8px;">
+                                            <div style="color:#a0a0c0; font-size:0.85rem; margin-bottom:4px;">Вражеский код (из CSV):</div>
+                                            <div id="massAssignForeignKod" style="color:#fff; font-size:1.1rem; font-weight:600;"></div>
+                                        </div>
+
+                                        <div style="margin-bottom:16px;">
+                                            <label style="display:block; color:#a0a0c0; font-size:0.9rem; margin-bottom:6px;">Выберите товар из базы:</label>
+                                            <div id="massAssignArtSelectWrap" style="position:relative;">
+                                                <div id="massAssignArtSelectTrigger" style="padding:10px 14px; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff; cursor:pointer; font-size:0.95rem;">— Выберите артикул —</div>
+                                                <div id="massAssignArtSelectOptions" style="display:none; position:absolute; top:100%; left:0; right:0; max-height:300px; overflow-y:auto; background:#1a1a2e; border:1px solid rgba(255,255,255,0.15); border-radius:8px; z-index:9999; margin-top:4px;"></div>
+                                            </div>
+                                            <input type="hidden" id="massAssignArtSelect" value="">
+                                        </div>
+
+                                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
+                                            <div>
+                                                <label style="display:block; color:#a0a0c0; font-size:0.85rem; margin-bottom:4px;">Наш код:</label>
+                                                <input type="text" id="massAssignKodInput" readonly style="width:100%; padding:8px 12px; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.9rem;">
+                                            </div>
+                                            <div>
+                                                <label style="display:block; color:#a0a0c0; font-size:0.85rem; margin-bottom:4px;">Название:</label>
+                                                <input type="text" id="massAssignNameInput" readonly style="width:100%; padding:8px 12px; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.9rem;">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Справа изображение 150x200 -->
+                                    <div style="width:150px; flex-shrink:0;">
+                                        <label style="display:block; color:#a0a0c0; font-size:0.85rem; margin-bottom:4px;">Изображение:</label>
+                                        <div id="massAssignImageContainer" style="width:150px; height:200px; background:rgba(0,0,0,0.25); border:2px dashed rgba(255,255,255,0.1); border-radius:12px; display:flex; align-items:center; justify-content:center; flex-direction:column;">
+                                            <span id="massAssignImagePlaceholder" style="font-size:3rem; color:#a0a0c0;">📷</span>
+                                            <img id="massAssignImage" style="display:none; max-width:100%; max-height:100%; object-fit:contain;">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="warehouse-modal-footer">
+                                <button id="massAssignSaveBtn" class="btn btn-primary">✅ Сохранить</button>
+                                <button id="massAssignCancelBtn" class="btn btn-ghost">Отмена</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="massResultsPreview" style="margin-top: 12px; max-height: 300px; overflow-y: auto;">
+                        <table class="accept-results-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Код (CSV)</th>
+                                    <th>Наш код</th>
+                                    <th>Артикул</th>
+                                    <th>Кол-во</th>
+                                    <th>Статус</th>
+                                </tr>
+                            </thead>
+                            <tbody id="massPreviewBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="step-actions" style="margin-top: 16px;">
+                        <button id="massConfirmUpload" class="btn btn-primary" disabled style="opacity:0.5;">✅ Подтвердить загрузку</button>
+                        <button id="massCancelUpload" class="btn btn-ghost">Отмена</button>
+                    </div>
+                    <div id="massConfirmStatus" style="margin-top:8px; font-size:0.85rem; color:#a0a0c0;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

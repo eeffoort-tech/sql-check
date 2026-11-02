@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Сделано</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="warehouse.css">
+    <link rel="stylesheet" href="sdelano.css">
+</head>
+<body>
+    <div class="container guide-container">
+        <header class="editor-header">
+            <div class="header-top">
+                <h1>✅ Сделано</h1>
+                <button id="backBtn" class="btn btn-ghost btn-small">← Назад</button>
+            </div>
+        </header>
+
+        <main>
+            <div id="sdelanoSection" class="editor-section">
+                <div class="guide-toolbar">
+                    <button id="periodBtn" class="btn btn-info btn-small" style="background:linear-gradient(135deg,#8b5cf6,#6366f1);">📋 Документы</button>
+                    <button id="refreshBtn" class="btn btn-secondary btn-small">🔄 Загрузить</button>
+                    <button id="saveAllBtn" class="btn btn-primary btn-small">💾 Сохранить</button>
+                    <input type="text" id="searchInput" placeholder="Поиск..." class="guide-search-input">
+                </div>
+
+                <div class="guide-table-wrapper" id="sdelanoTableContainer">
+                    <div class="loading-message">Загрузка данных...</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Модальное окно просмотра изображения -->
+    <div id="sdelanoImageFullview" class="sdelano-image-fullview">
+        <img id="sdelanoFullviewImg" src="" alt="">
+    </div>
+
+    <!-- Модальное окно выбора периода -->
+    <div id="periodModal" class="warehouse-modal" style="display: none;">
+        <div class="warehouse-modal-overlay"></div>
+        <div class="warehouse-modal-content" style="max-width: 500px;">
+            <div class="warehouse-modal-header">
+                <h3>📅 Период документов</h3>
+                <button class="btn-modal-close">×</button>
+            </div>
+            <div class="warehouse-modal-body">
+                <div class="accept-stock-form">
+                    <div class="form-row">
+                        <div class="form-group form-row-input">
+                            <label>Начало периода</label>
+                            <input type="date" id="periodStart">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group form-row-input">
+                            <label>Конец периода</label>
+                            <input type="date" id="periodEnd">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <button id="loadDocsBtn" class="btn btn-primary" style="width:100%;">📋 Загрузить документы</button>
+                    </div>
+                </div>
+                <div id="docsListWrapper" style="display:none; margin-top:16px;">
+                    <div style="max-height:400px; overflow-y:auto;">
+                        <table class="accept-results-table">
+                            <thead>
+                                <tr>
+                                    <th>Номер</th>
+                                    <th>Создатель</th>
+                                    <th>Дата</th>
+                                    <th>Товары</th>
+                                </tr>
+                            </thead>
+                            <tbody id="docsListBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="warehouse-modal-footer">
+                <button id="closePeriodBtn" class="btn btn-ghost">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно просмотра документа -->
+    <div id="docViewModal" class="warehouse-modal" style="display: none;">
+        <div class="warehouse-modal-overlay"></div>
+        <div class="warehouse-modal-content" style="max-width: 900px;">
+            <div class="warehouse-modal-header">
+                <h3>📄 Документ <span id="docViewNomer" style="color:#8b5cf6;"></span></h3>
+                <button class="btn-modal-close">×</button>
+            </div>
+            <div class="warehouse-modal-body">
+                <div style="margin-bottom:12px; color:#a0a0c0; font-size:0.9rem;">
+                    Создатель: <span id="docViewAuthor"></span> | Дата: <span id="docViewDate"></span> | Всего товаров: <span id="docViewTotal"></span>
+                </div>
+                <div id="docViewLoading" style="display:none;">
+                    <div class="loading-spinner" style="margin:20px auto;"></div>
+                </div>
+                <div id="docViewContent" style="display:block;">
+                    <div style="max-height:500px; overflow-y:auto;">
+                        <table class="accept-results-table">
+                            <thead>
+                                <tr>
+                                    <th>Код</th>
+                                    <th>Артикул</th>
+                                    <th>Количество</th>
+                                    <th>Исходное количество</th>
+                                </tr>
+                            </thead>
+                            <tbody id="docViewBody">
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="docViewEmptyMsg" style="text-align:center;padding:20px;color:#a0a0c0;display:none;">Нет товаров</div>
+                </div>
+            </div>
+            <div class="warehouse-modal-footer">
+                <button id="saveDocBtn" class="btn btn-primary">💾 Сохранить</button>
+                <button id="closeDocViewBtn" class="btn btn-ghost">Назад</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+
+    <!-- Модальное окно подтверждения печати -->
+    <div id="printConfirmModal" class="warehouse-modal" style="display: none;">
+        <div class="warehouse-modal-overlay"></div>
+        <div class="warehouse-modal-content" style="max-width: 400px;">
+            <div class="warehouse-modal-header">
+                <h3>🖨️ Печать</h3>
+                <button class="btn-modal-close">×</button>
+            </div>
+            <div class="warehouse-modal-body" style="text-align:center; padding:20px 0;">
+                <p style="font-size:1.1rem; color:#d0d0e0;">Распечатать документ?</p>
+            </div>
+            <div class="warehouse-modal-footer" style="justify-content: center; gap:12px;">
+                <button id="printYesBtn" class="btn btn-primary">Да</button>
+                <button id="printNoBtn" class="btn btn-ghost">Нет</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
+
+    <script src="sdelano.js"></script>
+</body>
+</html>

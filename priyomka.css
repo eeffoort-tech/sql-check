@@ -1,0 +1,347 @@
+/* ============================================================
+   PRIYOMKA PAGE STYLES
+   ============================================================ */
+
+/* === ГЛАВНАЯ ТАБЛИЦА === */
+#priyomkaTableContainer .guide-table,
+.priyomka-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 1.35rem;
+}
+
+#priyomkaTableContainer thead,
+.priyomka-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+#priyomkaTableContainer th,
+.priyomka-table th {
+    background: rgba(139, 92, 246, 0.3);
+    color: #ffffff;
+    padding: 10px 14px;
+    text-align: left;
+    font-weight: 600;
+    border-bottom: 2px solid rgba(139, 92, 246, 0.5);
+    white-space: nowrap;
+}
+
+#priyomkaTableContainer td,
+.priyomka-table td {
+    padding: 10px 14px;
+    color: #d0d0e0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+#priyomkaTableContainer tbody tr,
+.priyomka-table tbody tr {
+    transition: background 0.2s;
+}
+
+#priyomkaTableContainer tbody tr:hover,
+.priyomka-table tbody tr:hover {
+    background: rgba(139, 92, 246, 0.1);
+}
+
+/* === МОДАЛЬНОЕ ОКНО === */
+.priyomka-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: fadeIn 0.2s ease;
+}
+
+.priyomka-modal-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.priyomka-modal-content {
+    position: relative;
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 16px;
+    padding: 28px;
+    max-width: 800px;
+    width: 90%;
+    max-height: 85vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    z-index: 1;
+}
+
+.priyomka-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.priyomka-modal-header h3 {
+    color: #ffffff;
+    font-size: 1.3rem;
+}
+
+.priyomka-modal-body {
+    margin-bottom: 24px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.priyomka-modal-footer {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+/* === ТАБЛИЦА РЕЗУЛЬТАТОВ ПОИСКА === */
+/* === ТАБЛИЦА ДОКУМЕНТОВ === */
+#documentsListBody .accept-results-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+#documentsListBody .accept-results-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+}
+
+#documentsListBody .accept-results-table th {
+    background: rgba(139, 92, 246, 0.3);
+    color: #ffffff;
+    padding: 10px 14px;
+    text-align: left;
+    font-weight: 600;
+    border-bottom: 2px solid rgba(139, 92, 246, 0.5);
+    white-space: nowrap;
+}
+
+#documentsListBody .accept-results-table td {
+    padding: 10px 14px;
+    color: #d0d0e0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    vertical-align: middle;
+}
+
+#loadResults .accept-results-table tbody tr {
+    transition: background 0.2s;
+}
+
+#loadResults .accept-results-table tbody tr:hover {
+    background: rgba(139, 92, 246, 0.08);
+}
+
+/* === СТРОКА ДОКУМЕНТА (кликабельная) === */
+#documentsListBody .document-row {
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+#documentsListBody .document-row:hover {
+    background: rgba(46, 204, 113, 0.1);
+}
+
+/* === ВЫБРАННАЯ СТРОКА === */
+#loadResults .accept-results-table tbody tr.row-selected {
+    background: rgba(139, 92, 246, 0.15);
+}
+
+/* === КОЛОНКИ === */
+.doc-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #ffffff;
+    font-size: 1.1rem;
+    padding: 6px 12px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+}
+
+.doc-info .doc-nomer strong {
+    color: #ffffff;
+    font-weight: 700;
+}
+
+.doc-info .doc-author strong {
+    color: #ffffff;
+}
+
+.doc-info .doc-date strong {
+    color: #ffffff;
+}
+
+.doc-info .doc-redate {
+    color: #f39c12;
+}
+
+.doc-info .doc-redate strong {
+    color: #f39c12;
+}
+
+.doc-info span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.col-poka-nichego {
+    color: #a0a0c0;
+    font-style: italic;
+}
+
+.col-kod {
+    font-weight: 600;
+    color: #ffffff;
+}
+
+.col-art {
+    color: #d0d0e0;
+}
+
+.col-image {
+    width: 50px;
+    min-width: 50px;
+    text-align: center;
+    vertical-align: middle;
+    padding: 4px;
+    overflow: visible !important;
+}
+
+.warehouse-thumbnail {
+    width: 54px;
+    height: 75px;
+    object-fit: cover;
+    border-radius: 2px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+    display: block;
+    position: relative;
+    z-index: 10;
+    transform-origin: top left;
+    transform: scale(1);
+}
+
+.warehouse-thumbnail:hover {
+    border-color: rgba(139, 92, 246, 0.8);
+    box-shadow: 0 0 25px rgba(139, 92, 246, 0.7);
+    transform: translate(15px, -30px) scale(3);
+    z-index: 9999;
+}
+
+.no-image {
+    color: #8b5cf6;
+    font-size: 1.5rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform 0.2s, color 0.2s;
+    user-select: none;
+    display: inline-block;
+    width: 100%;
+    text-align: center;
+}
+
+.no-image:hover {
+    color: #a78bfa;
+    transform: scale(1.2);
+}
+
+.col-qty {
+    font-weight: 600;
+    color: #ffffff;
+    text-align: center;
+}
+
+.col-status {
+    color: #2ecc71;
+    font-weight: 600;
+}
+
+/* === КНОПКА ВЫБОРА === */
+.btn-select-item {
+    background: rgba(139, 92, 246, 0.1);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    border-radius: 6px;
+    padding: 6px 12px;
+    color: #c0c0e0;
+    cursor: pointer;
+    font-size: 0.95rem;
+    transition: all 0.2s;
+    text-align: center;
+    min-width: 40px;
+}
+
+.btn-select-item:hover {
+    background: rgba(139, 92, 246, 0.2);
+    color: #ffffff;
+    border-color: rgba(139, 92, 246, 0.5);
+}
+
+.btn-select-item.selected {
+    background: rgba(46, 204, 113, 0.15);
+    border-color: rgba(46, 204, 113, 0.4);
+    color: #2ecc71;
+}
+
+.btn-select-item.selected:hover {
+    background: rgba(46, 204, 113, 0.25);
+}
+
+/* === ПОЛЕ ВВОДА === */
+#doknomInput,
+#selectDateInput {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    padding: 12px 14px;
+    color: #ffffff;
+    font-size: 1rem;
+    font-family: 'Consolas', monospace;
+    transition: border-color 0.2s;
+}
+
+#doknomInput:focus,
+#selectDateInput:focus {
+    outline: none;
+    border-color: #8b5cf6;
+    background: rgba(0, 0, 0, 0.35);
+    box-shadow: 0 0 12px rgba(139, 92, 246, 0.4);
+}
+
+#doknomInput::placeholder,
+#selectDateInput::placeholder {
+    color: #606080;
+}
+
+#selectDateInput {
+    color-scheme: dark;
+}
+
+/* === АНИМАЦИИ === */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+    from { transform: translateY(30px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}

@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Массовая загрузка товаров</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="mass-upload.css">
+</head>
+<body>
+    <div class="container">
+        <header class="upload-header">
+            <div class="header-top">
+                <h1>📦 Массовая загрузка товаров</h1>
+                <button id="backBtn" class="btn btn-ghost btn-small">← Назад</button>
+            </div>
+            <p class="subtitle">Загрузите CSV-файл или Excel. Система автоматически определит магазин по именам колонок.</p>
+        </header>
+
+        <main>
+            <!-- ШАГ 1: Загрузка файла -->
+            <div id="step1" class="upload-section">
+                <div class="upload-card">
+                    <h2>📁 Шаг 1: Загрузите файл</h2>
+                    <div id="dropZone" class="drop-zone">
+                        <div class="drop-zone-icon">📂</div>
+                        <div class="drop-zone-text">Перетащите файл (CSV, Excel) сюда или</div>
+                        <label for="fileInput" class="btn btn-primary">Выбрать файл</label>
+                        <input type="file" id="fileInput" accept=".csv,.txt,.tsv,.xlsx,.xls" hidden>
+                    </div>
+                    <div id="fileName" class="file-name" style="display: none;">
+                        <span class="file-icon">📄</span>
+                        <span class="file-name-text"></span>
+                        <button id="removeFile" class="btn btn-ghost btn-tiny">×</button>
+                    </div>
+                    <div style="margin-top: 16px; text-align: center;">
+                        <button id="manageProfilesBtn" class="btn btn-ghost btn-small">⚙️ Настройки поиска</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ШАГ 2: Настройка колонок -->
+            <div id="step2" class="upload-section" style="display: none;">
+                <div class="upload-card">
+                    <h2>⚙️ Шаг 2: Настройка колонок</h2>
+                    <p class="step-desc">Выберите колонки из заголовков файла:</p>
+
+                    <div id="selectedStoreInfo" class="selected-store-info" style="display: none;">
+                        <span class="store-badge">🏪 <span class="store-name"></span></span>
+                    </div>
+
+                    <div class="column-selectors">
+                        <div class="form-field">
+                            <label>Колонка с кодом товара <span class="required">*</span></label>
+                            <select id="kodColumnSelect" required>
+                                <option value="">— Выберите —</option>
+                            </select>
+                        </div>
+
+                        <div class="form-field">
+                            <label>Колонка с количеством</label>
+                            <select id="qtyColumnSelect">
+                                <option value="">Нет (по умолчанию = 1)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Настройки проверки дубликатов -->
+                    <div class="duplicate-settings">
+                        <h3>🛡️ Настройки проверки дубликатов</h3>
+                        <label class="checkbox-item">
+                            <input type="checkbox" id="chkCheckByName" checked>
+                            <span>Проверять по имени файла (сегодня)</span>
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" id="chkCheckByContent" checked>
+                            <span>Проверять дату создания файла</span>
+                        </label>
+                    </div>
+
+                    <div class="step-actions">
+                        <button id="analyzeBtn" class="btn btn-primary">▶ Анализировать</button>
+                        <button id="cancelStep2" class="btn btn-ghost btn-small">← Назад</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ШАГ 4: Предпросмотр -->
+            <div id="step3" class="upload-section" style="display: none;">
+                <div class="upload-card">
+                    <h2>👁️ Шаг 4: Предпросмотр найденных товаров</h2>
+
+                    <!-- Статистика + кнопка -->
+                    <div class="stats-bar">
+                        <div class="stat-item">
+                            <span class="stat-label">Всего строк:</span>
+                            <span class="stat-value" id="totalRows">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Найдено в базе:</span>
+                            <span class="stat-value found" id="foundRows">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Не найдено:</span>
+                            <span class="stat-value not-found" id="notFoundRows">0</span>
+                        </div>
+                        <div class="stat-item stat-item-action">
+                            <button id="viewFileBtn" class="btn btn-ghost btn-small">📄 Посмотреть файл</button>
+                        </div>
+                    </div>
+
+                    <div id="blockWarning" class="block-warning" style="display: none;">
+                        <div class="warning-icon">⚠️</div>
+                        <div class="warning-content">
+                            <div class="warning-title"></div>
+                            <div class="warning-text"></div>
+                            <button id="forceContinueBtn" class="btn btn-secondary btn-small" style="margin-top: 12px;">
+                                ✅ Да, я знаю, продолжить
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="conflictWarning" class="conflict-warning" style="display: none;">
+                        <div class="warning-icon">🔴</div>
+                        <div class="warning-content">
+                            <div class="warning-title">Обнаружен конфликт загруженных товаров!</div>
+                            <div class="warning-text">Один товар соответствует нескольким вражеским кодам. Нажмите "Разрешить конфликт" для выбора.</div>
+                            <button id="resolveConflictBtn" class="btn btn-danger btn-small" style="margin-top: 12px;">
+                                🔧 Разрешить конфликт
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="conflictModal" class="mass-upload-modal" style="display: none;">
+                        <div class="mass-upload-modal-content" style="max-width: 800px; position: relative;">
+                            <div class="mass-upload-modal-header">
+                                <h3>🔧 Разрешение конфликтов</h3>
+                                <button class="btn-modal-close" id="closeConflictModalX">×</button>
+                            </div>
+                            <div class="mass-upload-modal-body">
+                                <div id="conflictsList" class="conflicts-list"></div>
+                            </div>
+                            <div class="mass-upload-modal-footer conflict-modal-footer">
+                                <button id="saveConflictBtn" class="btn btn-primary">💾 Сохранить</button>
+                                <button id="viewFileBtnConflict" class="btn btn-ghost btn-small">📄 Посмотреть файл</button>
+                                <button id="closeConflictBtn" class="btn btn-ghost">Отмена</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="preview-table-container">
+                        <table id="previewTable">
+                            <thead>
+                                <tr>
+                                    <th style="width: 50px;">№</th>
+                                    <th>Код из CSV</th>
+                                    <th>Наш код</th>
+                                    <th>Артикул</th>
+                                    <th style="width: 80px;">Кол-во</th>
+                                    <th style="width: 130px;">Статус</th>
+                                </tr>
+                            </thead>
+                            <tbody id="previewBody"></tbody>
+                        </table>
+                    </div>
+
+                    <!-- Модалка присвоения -->
+                    <div id="assignModal" class="mass-upload-modal" style="display: none;">
+                        <div class="mass-upload-modal-overlay"></div>
+                        <div class="mass-upload-modal-content assign-modal-content">
+                            <div class="mass-upload-modal-header">
+                                <h3>🔗 Присвоить товар</h3>
+                                <button class="btn-modal-close">×</button>
+                            </div>
+                            <div class="mass-upload-modal-body assign-modal-body">
+                                <div class="assign-main">
+                                    <div class="assign-info">
+                                        <div class="assign-info-row">
+                                            <span class="assign-label">Вражеский код:</span>
+                                            <span id="assignForeignKod" class="assign-value"></span>
+                                        </div>
+                                    </div>
+
+                                    <div class="assign-form">
+                                        <div class="assign-field">
+                                            <label>Артикул <span class="required">*</span></label>
+                                            <div class="custom-select" id="assignArtSelectWrap">
+                                                <div class="custom-select-trigger">
+                                                    <span class="custom-select-placeholder">— Выберите артикул —</span>
+                                                    <span class="custom-select-value"></span>
+                                                    <span class="custom-select-arrow">▼</span>
+                                                </div>
+                                                <div class="custom-select-options">
+                                                    <div class="custom-select-option" data-value="" data-label="— Выберите артикул —"></div>
+                                                </div>
+                                            </div>
+                                            <input type="hidden" id="assignArtSelect" value="">
+                                        </div>
+
+                                        <div class="assign-row">
+                                            <div class="assign-field">
+                                                <label>Код <span class="required">*</span></label>
+                                                <input type="text" id="assignKodInput" readonly>
+                                            </div>
+                                            <div class="assign-field assign-field-wide">
+                                                <label>Наименование</label>
+                                                <input type="text" id="assignNameInput" readonly>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div id="assignImageContainer" class="assign-image-sidebar">
+                                    <div id="assignImagePlaceholder" class="assign-image-placeholder">
+                                        <span class="placeholder-icon">🖼️</span>
+                                        <span class="placeholder-text">Нет изображения</span>
+                                    </div>
+                                    <img id="assignImage" src="" alt="Товар" style="display: none;">
+                                </div>
+                            </div>
+                            <div class="mass-upload-modal-footer">
+                                <button id="assignSaveBtn" class="btn btn-primary">💾 Присвоить</button>
+                                <button id="assignCancelBtn" class="btn btn-ghost">Отмена</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="step-actions">
+                        <button id="confirmUpload" class="btn btn-primary" disabled>💾 Подтвердить загрузку</button>
+                        <button id="cancelUpload" class="btn btn-danger">✕ Отменить всё</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Модалка просмотра файла -->
+            <div id="viewFileModal" class="mass-upload-modal" style="display: none;">
+                <div class="mass-upload-modal-overlay"></div>
+                <div class="mass-upload-modal-content" style="max-width: 900px;">
+                    <div class="mass-upload-modal-header">
+                        <h3>📄 Содержимое файла</h3>
+                        <button class="btn-modal-close" id="closeViewFileModalX">×</button>
+                    </div>
+                    <div class="mass-upload-modal-body">
+                        <div class="view-file-search">
+                            <input type="text" id="viewFileSearch" placeholder="🔍 Поиск по содержимому файла...">
+                            <button id="viewFileSearchClear" class="btn btn-ghost btn-tiny" style="display:none;">×</button>
+                        </div>
+
+                        <div class="view-file-selectors">
+                            <div class="form-field">
+                                <label>Колонка 1</label>
+                                <select id="viewCol1">
+                                    <option value="">— Выберите колонку —</option>
+                                </select>
+                            </div>
+                            <div class="form-field">
+                                <label>Колонка 2</label>
+                                <select id="viewCol2">
+                                    <option value="">— Выберите колонку —</option>
+                                </select>
+                            </div>
+                            <div class="form-field">
+                                <label>Колонка 3</label>
+                                <select id="viewCol3">
+                                    <option value="">— Выберите колонку —</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="preview-table-container" style="max-height: 400px;">
+                            <table id="viewFileTable">
+                                <thead>
+                                    <tr>
+                                        <th id="viewCol1Header" class="view-col">Колонка 1</th>
+                                        <th id="viewCol2Header" class="view-col" style="display:none;">Колонка 2</th>
+                                        <th id="viewCol3Header" class="view-col" style="display:none;">Колонка 3</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="viewFileBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="mass-upload-modal-footer">
+                        <button id="closeViewFileBtn" class="btn btn-ghost">Закрыть</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ШАГ 5: Результат -->
+            <div id="step4" class="upload-section" style="display: none;">
+                <div class="upload-card result-card">
+                    <div class="result-icon">✅</div>
+                    <h2>Загрузка завершена!</h2>
+                    <div id="resultDetails" class="result-details"></div>
+                    <div class="step-actions">
+                        <button id="finishBtn" class="btn btn-primary">Готово</button>
+                        <button id="newUploadBtn" class="btn btn-ghost">Новая загрузка</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Toast уведомление -->
+    <div id="toast" class="toast">
+        <span class="toast-text"></span>
+    </div>
+
+    <script src="xlsx.full.min.js"></script>
+    <script src="mass-upload.js"></script>
+</body>
+</html>

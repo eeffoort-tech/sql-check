@@ -1,0 +1,79 @@
+/* ============================================================
+   LOGIN PAGE STYLES
+   ============================================================ */
+
+/* ==================== STEP SECTIONS ==================== */
+.connection-step,
+.auth-step {
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.connection-step h3,
+.auth-step h3 {
+    color: #c0c0e0;
+    font-size: 1.1rem;
+    margin-bottom: 16px;
+    font-weight: 600;
+}
+
+.auth-step {
+    opacity: 0.5;
+    pointer-events: none;
+    user-select: none;
+}
+
+.auth-step:not([disabled]) {
+    opacity: 1;
+    pointer-events: auto;
+    user-select: auto;
+}
+
+/* ==================== FORM GROUPS ==================== */
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group label {
+    display: block;
+    color: #a0a0c0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.form-group input {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    padding: 12px 14px;
+    color: #ffffff;
+    font-size: 0.95rem;
+    font-family: 'Consolas', monospace;
+    transition: border-color 0.2s;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: #8b5cf6;
+}
+
+.form-group input:disabled {
+    background: rgba(0, 0, 0, 0.2);
+    border-color: rgba(255, 255, 255, 0.08);
+    color: #606080;
+    cursor: not-allowed;
+}
+
+/* ==================== STATUS (reuse from style.css but override if needed) ==================== */
+.status-section {
+    margin-top: 20px;
+}
+
+/* ==================== BUTTONS ==================== */
+.btn-secondary:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}

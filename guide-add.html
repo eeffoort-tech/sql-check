@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Добавить запись — Справочник</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="sql-editor.css">
+    <link rel="stylesheet" href="guide-add.css">
+</head>
+<body>
+    <div class="container guide-add-container">
+        <header class="editor-header">
+            <div class="header-top">
+                <h1 id="pageTitle">Добавить запись</h1>
+                <button id="backBtn" class="btn btn-ghost btn-small">← Назад</button>
+            </div>
+        </header>
+
+        <main>
+            <form id="recordForm">
+                <!-- Левая часть: поля формы -->
+                <div class="guide-add-body">
+                    <div class="guide-add-form-section">
+                        <div id="formRows"></div>
+                    </div>
+
+                    <!-- Правая часть: Состав -->
+                    <div class="guide-add-right">
+                        <div class="composition-header">Состав</div>
+
+                        <!-- Поле Себестоимость -->
+                        <div class="cost-wrapper">
+                            <div class="form-row-add">
+                                <div class="form-row-label">Себестоимость</div>
+                                <div class="form-row-input">
+                                    <input type="number" id="costPrice" name="sebestoimost" readonly placeholder="0">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="composition-table-wrapper">
+                            <table class="composition-table" id="compositionTable">
+                                <thead>
+                                    <tr>
+                                        <th style="width:30px;text-align:center;">Уп</th>
+                                        <th>Код</th>
+                                        <th>Состав</th>
+                                        <th>Категория</th>
+                                        <th>Кол-во</th>
+                                        <th>Ед.изм.</th>
+                                        <th>Цена</th>
+                                        <th>Сумма</th>
+                                        <th>Имя</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="compositionBody">
+                                </tbody>
+                            </table>
+                        </div>
+                        <button type="button" id="addCompositionFromGuide" class="btn btn-ghost btn-small comp-add-btn">Добавить состав</button>
+
+                        <!-- Контейнер для картинки -->
+                        <div class="image-upload-area">
+                            <div class="image-container" id="imageContainer">
+                                <img id="previewImage" src="" alt="">
+                                <span class="image-placeholder">Нажмите, чтобы добавить изображение</span>
+                            </div>
+                            <input type="file" id="imageUpload" accept="image/*" style="display:none">
+                            <button type="button" id="deleteImageBtn" class="btn btn-ghost btn-small delete-image-btn">Удалить</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-actions guide-add-actions">
+                    <button type="submit" class="btn btn-primary">💾 Сохранить</button>
+                    <button type="button" id="cancelForm" class="btn btn-ghost">Отмена</button>
+                </div>
+            </form>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+    <script src="guide-add.js"></script>
+
+    <!-- Модальное окно добавления состава из guide -->
+    <div id="addCompositionModal" class="edit-product-modal" style="display: none;">
+        <div class="edit-product-modal-overlay"></div>
+        <div class="edit-product-modal-content">
+            <div class="edit-product-modal-header">
+                <h3>Добавить состав</h3>
+                <button id="closeAddCompositionModal" class="btn-modal-close">×</button>
+            </div>
+            <div class="edit-product-modal-body">
+                <div class="edit-product-form">
+                    <div class="edit-product-field">
+                        <label>GTIN</label>
+                        <input type="text" id="editGtin" placeholder="Введите GTIN...">
+                        <div id="gtinResults" class="search-results-list"></div>
+                    </div>
+                    <div class="edit-product-field">
+                        <label>Код <span style="color:red">*</span></label>
+                        <input type="text" id="editKod" placeholder="Введите код...">
+                        <div id="kodResults" class="search-results-list"></div>
+                    </div>
+                    <div class="edit-product-field">
+                        <label>Категория</label>
+                        <select id="editCategory">
+                            <option value="" disabled selected hidden></option>
+                        </select>
+                    </div>
+                    <div class="edit-product-field">
+                        <label>Наименование</label>
+                        <select id="editName">
+                            <option value="" disabled selected hidden></option>
+                        </select>
+                    </div>
+                    <div class="edit-product-field">
+                        <label>Артикул <span style="color:red">*</span></label>
+                        <select id="editArt">
+                            <option value="" disabled selected hidden></option>
+                        </select>
+                    </div>
+                    <div class="edit-product-field edit-qty-row">
+                        <label>Кол-во <span style="color:red">*</span></label>
+                        <div class="edit-qty-wrapper">
+                            <input type="number" id="editQty" step="any" placeholder="0">
+                            <div class="edit-product-field pack-checkbox-field" style="display:none;">
+                                <label>
+                                    <input type="checkbox" id="modalPackCheckbox">
+                                    Упакован сразу?
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="edit-product-image-section">
+                    <label>Изображение</label>
+                    <div class="edit-product-image-container" id="editImageContainer">
+                        <img id="editPreviewImage" src="" alt="">
+                        <span class="edit-image-placeholder">Нажмите, чтобы добавить изображение</span>
+                    </div>
+                    <input type="file" id="editImageUpload" accept="image/*" style="display:none">
+                </div>
+            </div>
+            <div class="edit-product-modal-footer">
+                <button id="saveAddComposition" class="btn btn-primary">✓ Добавить</button>
+                <button id="clearModalFields" class="btn btn-ghost">Очистить</button>
+                <button id="cancelAddComposition" class="btn btn-ghost">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно подтверждения дубликата -->
+    <div id="duplicateModal" class="edit-product-modal" style="display: none;">
+        <div class="edit-product-modal-overlay"></div>
+        <div class="edit-product-modal-content" style="max-width: 500px;">
+            <div class="edit-product-modal-header">
+                <h3>⚠️ ВНИМАНИЕ</h3>
+                <button class="btn-modal-close">×</button>
+            </div>
+            <div class="edit-product-modal-body">
+                <p style="margin: 0; font-size: 1rem; line-height: 1.6; color: #e0e0e0;">
+                    Такая запись уже есть в списке.<br><br>
+                    <strong style="color: #8b5cf6;" id="dupItemName"></strong>
+                </p>
+            </div>
+            <div class="edit-product-modal-footer">
+                <button id="dupAddToQty" class="btn btn-primary">➕ Добавить к количеству</button>
+                <button id="dupAddNew" class="btn btn-ghost" style="color: #f59e0b;">🆕 Новая запись</button>
+                <button id="dupCancel" class="btn btn-ghost">❌ Отмена</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

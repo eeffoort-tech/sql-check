@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Настройки колонок — Массовая загрузка</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="column-config.css">
+</head>
+<body>
+    <div class="container">
+        <header class="config-header">
+            <div class="header-top">
+                <h1>⚙️ Настройки поиска</h1>
+                <button id="backBtn" class="btn btn-ghost btn-small">← Назад</button>
+            </div>
+            <p class="subtitle">Создавайте профили для разных магазинов. Каждый магазин может иметь свои названия колонок для поиска.</p>
+        </header>
+
+        <main>
+            <!-- Список профилей магазинов -->
+            <div class="config-section">
+                <div class="settings-card">
+                    <div class="profiles-header">
+                        <h2>🏪 Профили поиска</h2>
+                        <button id="addProfileBtn" class="btn btn-primary btn-small">+ Добавить профиль</button>
+                    </div>
+
+                    <div id="profilesList" class="profiles-list">
+                        <div class="loading-state">Загрузка профилей...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Форма редактирования профиля -->
+            <div id="profileFormSection" class="config-section" style="display: none;">
+                <div class="settings-card">
+                    <h2 id="formTitle">✏️ Новый профиль</h2>
+                    <form id="profileForm">
+                        <input type="hidden" id="profileId">
+
+                        <div class="form-row">
+                            <div class="form-field form-field-wide">
+                                <label for="storeName">
+                                    Название профиля
+                                    <span class="required">*</span>
+                                </label>
+                                <input 
+                                    type="text" 
+                                    id="storeName" 
+                                    name="store_name" 
+                                    placeholder="Например: Магазин №1, Магнит, Пятёрочка"
+                                    required
+                                >
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-field">
+                                <label for="kodCol">
+                                    Колонка с кодом товара
+                                    <span class="required">*</span>
+                                </label>
+                                <input 
+                                    type="text" 
+                                    id="kodCol" 
+                                    name="kod_col" 
+                                    placeholder="Например: kod_art, код, article"
+                                    required
+                                >
+                            </div>
+
+                            <div class="form-field">
+                                <label for="nameCol">
+                                    Колонка с наименованием
+                                </label>
+                                <input 
+                                    type="text" 
+                                    id="nameCol" 
+                                    name="name_col" 
+                                    placeholder="Например: name, наименование"
+                                >
+                            </div>
+
+                            <div class="form-field">
+                                <label for="qtyCol">
+                                    Колонка с количеством
+                                </label>
+                                <input 
+                                    type="text" 
+                                    id="qtyCol" 
+                                    name="qty_col" 
+                                    placeholder="Например: quantity, кол-во"
+                                >
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">💾 Сохранить профиль</button>
+                            <button type="button" id="cancelForm" class="btn btn-ghost">Отмена</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="column-config.js"></script>
+</body>
+</html>

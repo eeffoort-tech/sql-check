@@ -1,0 +1,758 @@
+/* ============================================================
+   GUIDE ADD PAGE STYLES
+   ============================================================ */
+
+.guide-add-container {
+    max-width: 100%;
+    padding: 0 20px;
+}
+
+/* ==================== BODY LAYOUT ==================== */
+.guide-add-body {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 24px;
+}
+
+/* --- Левая часть: форма --- */
+.guide-add-form-section {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Строка формы: название + поле ввода */
+.form-row-add {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 0;
+}
+
+.form-row-label {
+    flex: 0 0 200px;
+    color: #a0a0c0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: right;
+}
+
+.form-row-input {
+    flex: 0 0 56%;
+}
+
+.form-row-input input,
+.form-row-input select {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    padding: 10px 12px;
+    color: #ffffff;
+    font-size: 0.9rem;
+    font-family: 'Consolas', monospace;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23a0a0c0' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+}
+
+.form-row-input input:focus,
+.form-row-input select:focus {
+    outline: none;
+    border-color: #8b5cf6;
+    background: rgba(0, 0, 0, 0.35);
+    box-shadow: 0 0 12px rgba(139, 92, 246, 0.4);
+}
+
+.form-row-input select option {
+    background: rgba(15, 15, 30, 0.95);
+    color: #e0e0e0;
+    padding: 8px;
+}
+
+.kod-field-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.kod-input {
+    flex: 1;
+}
+
+.btn-refresh-kod {
+    background: none;
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    color: #8b5cf6;
+    cursor: pointer;
+    font-size: 1.2rem;
+    padding: 10px 12px;
+    border-radius: 6px;
+    transition: transform 0.2s, color 0.2s, border-color 0.2s;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.btn-refresh-kod:hover {
+    transform: scale(1.1);
+    border-color: #8b5cf6;
+    color: #a78bfa;
+}
+
+/* ==================== AUTOCOMPLETE ==================== */
+.autocomplete-wrapper {
+    position: relative;
+}
+
+.autocomplete-list {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: 200px;
+    overflow-y: auto;
+    background: rgba(15, 15, 30, 0.95);
+    border: 1px solid rgba(139, 92, 246, 0.4);
+    border-radius: 6px;
+    margin-top: 4px;
+    z-index: 100;
+    display: none;
+}
+
+.autocomplete-list:empty {
+    display: none;
+}
+
+.autocomplete-list:not(:empty) {
+    display: block;
+}
+
+.autocomplete-item {
+    padding: 8px 12px;
+    color: #e0e0e0;
+    font-size: 0.9rem;
+    font-family: 'Consolas', monospace;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.autocomplete-item:hover,
+.autocomplete-item.active {
+    background: rgba(139, 92, 246, 0.25);
+    color: #ffffff;
+}
+
+/* --- Правая часть: Состав --- */
+.guide-add-right {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.composition-header {
+    color: #c0c0e0;
+    font-size: 1rem;
+    font-weight: 600;
+    text-align: center;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+}
+
+.comp-add-btn {
+    align-self: flex-start;
+}
+
+/* ==================== COST WRAPPER ==================== */
+.cost-wrapper {
+    padding: 8px 12px;
+    background: rgba(139, 92, 246, 0.1);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    border-radius: 6px;
+}
+
+.pack-checkbox-field label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    color: #e0e0e0;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.pack-checkbox-field input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: #8b5cf6;
+}
+
+/* ==================== EDIT QTY ROW ==================== */
+.edit-qty-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.edit-qty-wrapper {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.edit-qty-wrapper .edit-product-field {
+    margin: 0;
+}
+
+/* ==================== COST FIELD ==================== */
+.cost-wrapper {
+    margin-bottom: 10px;
+}
+
+.cost-wrapper .form-row-add {
+    align-items: center;
+}
+
+.cost-wrapper .form-row-label {
+    color: #c0c0e0;
+    flex: 0 0 140px;
+}
+
+.cost-wrapper .form-row-input {
+    flex: 1;
+    max-width: 150px;
+}
+
+.cost-wrapper input {
+    background: rgba(139, 92, 246, 0.15);
+    border-color: rgba(139, 92, 246, 0.3);
+    font-weight: 600;
+    cursor: default;
+    width: auto;
+    min-width: 60px;
+}
+
+.cost-wrapper input:focus {
+    border-color: rgba(139, 92, 246, 0.6);
+    box-shadow: 0 0 8px rgba(139, 92, 246, 0.3);
+}
+
+.cost-wrapper input[readonly] {
+    opacity: 0.8;
+    cursor: not-allowed;
+}
+
+/* ==================== IMAGE UPLOAD ==================== */
+.image-upload-area {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+    width: 30%;
+}
+
+.image-container {
+    width: 100%;
+    min-height: 200px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 2px dashed rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    position: relative;
+    overflow: hidden;
+}
+
+.image-container:hover {
+    border-color: rgba(139, 92, 246, 0.4);
+}
+
+.image-container.has-image {
+    border-style: solid;
+    border-color: rgba(139, 92, 246, 0.3);
+}
+
+.image-container.has-image:hover {
+    box-shadow: 0 0 12px rgba(139, 92, 246, 0.3);
+}
+
+#previewImage {
+    max-width: 100%;
+    max-height: 300px;
+    object-fit: contain;
+    display: none;
+}
+
+.image-placeholder {
+    color: #a0a0c0;
+    font-size: 0.9rem;
+    text-align: center;
+    padding: 20px;
+}
+
+.image-container.has-image .image-placeholder {
+    display: none;
+}
+
+.image-container.has-image #previewImage {
+    display: block;
+}
+
+.delete-image-btn {
+    color: #e74c3c;
+    border-color: rgba(231, 76, 60, 0.3);
+}
+
+.delete-image-btn:hover {
+    background: rgba(231, 76, 60, 0.15);
+    border-color: rgba(231, 76, 60, 0.5);
+}
+
+/* ==================== COMPOSITION TABLE ==================== */
+.composition-table-wrapper {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    overflow: auto;
+    max-height: 320px;
+}
+
+.composition-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+}
+
+.composition-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+}
+
+.composition-table th {
+    background: rgba(139, 92, 246, 0.25);
+    color: #e0e0e0;
+    padding: 6px 8px;
+    text-align: left;
+    font-weight: 600;
+    border-bottom: 2px solid rgba(139, 92, 246, 0.4);
+    white-space: nowrap;
+}
+
+.composition-table td {
+    padding: 2px;
+    vertical-align: middle;
+}
+
+.composition-table tbody tr:hover {
+    background: rgba(139, 92, 246, 0.08);
+}
+
+.composition-table td:first-child {
+    padding-left: 2px;
+}
+
+.composition-table input {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 5px 8px;
+    color: #ffffff;
+    font-size: 0.82rem;
+    font-family: 'Consolas', monospace;
+    transition: border-color 0.2s;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.composition-table input:focus {
+    outline: none;
+    border-color: #8b5cf6;
+}
+
+.composition-table input[readonly] {
+    background: rgba(0, 0, 0, 0.15);
+    color: rgba(255, 255, 255, 0.5);
+    cursor: not-allowed;
+    border-color: transparent;
+}
+
+.composition-table .col-del-btn {
+    background: none;
+    border: none;
+    color: #e74c3c;
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 4px 8px;
+    transition: transform 0.2s;
+}
+
+.composition-table .upak-row-cb {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: #8b5cf6;
+    margin: 0;
+}
+
+.composition-table .upak-row-cb:disabled {
+    cursor: default;
+    opacity: 0.3;
+    pointer-events: none;
+}
+
+.composition-table .col-del-btn:hover {
+    transform: scale(1.3);
+}
+
+.composition-table .btn-edit-comp {
+    background: none;
+    border: none;
+    color: #8b5cf6;
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 4px 8px;
+    transition: transform 0.2s, color 0.2s;
+    margin-right: 4px;
+}
+
+.composition-table .btn-edit-comp:hover {
+    transform: scale(1.3);
+    color: #a78bfa;
+}
+
+/* ==================== EDIT PRODUCT MODAL ==================== */
+.edit-product-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.edit-product-modal-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+}
+
+.edit-product-modal-content {
+    position: relative;
+    background: rgba(20, 20, 40, 0.98);
+    border: 1px solid rgba(139, 92, 246, 0.4);
+    border-radius: 12px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(139, 92, 246, 0.3);
+    z-index: 1;
+}
+
+.edit-product-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    background: rgba(139, 92, 246, 0.15);
+    border-radius: 12px 12px 0 0;
+}
+
+.edit-product-modal-header h3 {
+    margin: 0;
+    color: #e0e0e0;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.btn-modal-close {
+    background: none;
+    border: none;
+    color: #a0a0c0;
+    font-size: 1.8rem;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: background 0.2s, color 0.2s;
+}
+
+.btn-modal-close:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+}
+
+.edit-product-modal-body {
+    padding: 20px;
+    display: flex;
+    gap: 20px;
+}
+
+.edit-product-form {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.edit-product-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.edit-product-field label {
+    color: #a0a0c0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.edit-product-field input {
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    padding: 10px 12px;
+    color: #ffffff;
+    font-size: 0.9rem;
+    font-family: 'Consolas', monospace;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.edit-product-field input:focus {
+    outline: none;
+    border-color: #8b5cf6;
+    box-shadow: 0 0 8px rgba(139, 92, 246, 0.3);
+}
+
+.edit-product-field input[readonly] {
+    background: rgba(0, 0, 0, 0.15);
+    color: rgba(255, 255, 255, 0.5);
+    cursor: not-allowed;
+    border-color: transparent;
+}
+
+.edit-product-field select {
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    padding: 10px 12px;
+    color: #ffffff;
+    font-size: 0.9rem;
+    font-family: 'Consolas', monospace;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23a0a0c0' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+    cursor: pointer;
+}
+
+.edit-product-field select:focus {
+    outline: none;
+    border-color: #8b5cf6;
+    box-shadow: 0 0 8px rgba(139, 92, 246, 0.3);
+}
+
+.edit-product-field select option {
+    background: rgba(15, 15, 30, 0.95);
+    color: #e0e0e0;
+    padding: 8px;
+}
+
+.edit-product-image-section {
+    flex: 0 0 180px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.edit-product-image-section > label {
+    color: #a0a0c0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.edit-product-image-container {
+    width: 100%;
+    aspect-ratio: 1;
+    background: rgba(0, 0, 0, 0.25);
+    border: 2px dashed rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    position: relative;
+    overflow: hidden;
+}
+
+.edit-product-image-container:hover {
+    border-color: rgba(139, 92, 246, 0.4);
+    box-shadow: 0 0 12px rgba(139, 92, 246, 0.2);
+}
+
+.edit-product-image-container.has-image {
+    border-style: solid;
+    border-color: rgba(139, 92, 246, 0.3);
+}
+
+#editPreviewImage {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: none;
+}
+
+.edit-image-placeholder {
+    color: #a0a0c0;
+    font-size: 0.75rem;
+    text-align: center;
+    padding: 10px;
+}
+
+.edit-product-image-container.has-image .edit-image-placeholder {
+    display: none;
+}
+
+.edit-product-image-container.has-image #editPreviewImage {
+    display: block;
+}
+
+.edit-product-modal-footer {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    padding: 16px 20px;
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 0 0 12px 12px;
+}
+
+.edit-product-modal-footer .btn {
+    min-width: 100px;
+}
+
+/* ==================== SEARCH RESULTS ==================== */
+.search-results-list {
+    max-height: 200px;
+    overflow-y: auto;
+    background: rgba(15, 15, 30, 0.95);
+    border: 1px solid rgba(139, 92, 246, 0.4);
+    border-radius: 6px;
+    margin-top: 4px;
+    z-index: 100;
+}
+
+.search-result-item {
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.search-result-item:hover {
+    background: rgba(139, 92, 246, 0.25);
+}
+
+.search-result-item:last-child {
+    border-bottom: none;
+}
+
+.search-result-kod,
+.search-result-art,
+.search-result-name,
+.search-result-type,
+.search-result-price {
+    font-size: 0.8rem;
+    color: #a0a0c0;
+    margin: 2px 0;
+}
+
+.search-result-kod {
+    color: #8b5cf6;
+    font-weight: 600;
+}
+
+.search-no-results {
+    padding: 12px;
+    color: #a0a0c0;
+    text-align: center;
+    font-size: 0.85rem;
+}
+
+.search-result-item .not-found-text {
+    color: #ff9696;
+}
+
+.edit-product-field input.not-found {
+    background: rgba(255, 150, 150, 0.15) !important;
+    border-color: rgba(255, 100, 100, 0.3);
+    color: #ff9696;
+}
+
+/* ==================== ACTIONS ==================== */
+.guide-add-actions {
+    margin-top: 20px;
+    padding-top: 20px;
+}
+
+/* ==================== RESPONSIVE ==================== */
+@media (max-width: 1024px) {
+    .guide-add-body {
+        flex-direction: column;
+    }
+
+    .guide-add-form-section,
+    .guide-add-right {
+        flex: none;
+        width: 100%;
+    }
+}
+
+@media (max-width: 768px) {
+    .form-row-add {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+
+    .form-row-label {
+        flex: none;
+        width: 100%;
+    }
+}
