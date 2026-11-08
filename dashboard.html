@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Панель управления</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <p class="subtitle" style="font-size: 1.5rem; font-weight: 600; color: #ffffff;">Добро пожаловать, <span id="userNameDisplay">---</span></p>
+        </header>
+
+        <main>
+            <div class="admin-section">
+                <div class="actions-grid" id="actionsGrid">
+                    <button class="admin-btn" data-module="База данных" id="goToDatabaseBtn">
+                        <div class="admin-btn-icon">🗄️</div>
+                        <div class="admin-btn-title">База данных</div>
+                        <div class="admin-btn-desc">Просмотр и редактирование таблиц</div>
+                    </button>
+
+                    <button class="admin-btn" data-module="Клиенты" id="goToClientsBtn">
+                        <div class="admin-btn-icon">👥</div>
+                        <div class="admin-btn-title">Клиенты</div>
+                        <div class="admin-btn-desc">База клиентов</div>
+                    </button>
+
+                    <button class="admin-btn" data-module="Товары" id="goToProductsBtn">
+                        <div class="admin-btn-icon">📋</div>
+                        <div class="admin-btn-title">Товары</div>
+                        <div class="admin-btn-desc">Справочник товаров</div>
+                    </button>
+
+                    <button class="admin-btn" data-module="Склад" id="goToWarehouseBtn">
+                        <div class="admin-btn-icon">🏭</div>
+                        <div class="admin-btn-title">Склад</div>
+                        <div class="admin-btn-desc">Учёт товаров на складе</div>
+                    </button>
+
+                    <button class="admin-btn" data-module="Приёмка" id="goToPriyomkaBtn">
+                        <div class="admin-btn-icon">📥</div>
+                        <div class="admin-btn-title">Приёмка</div>
+                        <div class="admin-btn-desc">Оформление приёмки товаров</div>
+                    </button>
+
+                    <button class="admin-btn" data-module="Стикеры" id="goToStickerConfigBtn">
+                        <div class="admin-btn-icon">🏷️</div>
+                        <div class="admin-btn-title">Стикеры</div>
+                        <div class="admin-btn-desc">Конфигуратор этикеток</div>
+                    </button>
+
+                    <button class="admin-btn" data-module="Сотрудники" id="goToEmployeesBtn">
+                        <div class="admin-btn-icon">👤</div>
+                        <div class="admin-btn-title">Сотрудники</div>
+                        <div class="admin-btn-desc">Реестр сотрудников</div>
+                    </button>
+
+                    <button class="admin-btn" data-module="Моя зарплата" id="goToSalaryBtn">
+                        <div class="admin-btn-icon">💰</div>
+                        <div class="admin-btn-title">Моя зарплата</div>
+                        <div class="admin-btn-desc">Информация о зарплате</div>
+                    </button>
+
+                    <button class="admin-btn" data-module="Справочник" id="goToReferenceBtn">
+                        <div class="admin-btn-icon">📚</div>
+                        <div class="admin-btn-title">Справочник</div>
+                        <div class="admin-btn-desc">Общие справочники</div>
+                    </button>
+
+                    <button class="admin-btn" data-module="Отгрузка" id="goToShipmentBtn">
+                        <div class="admin-btn-icon">📦</div>
+                        <div class="admin-btn-title">Отгрузка</div>
+                        <div class="admin-btn-desc">Оформление отгрузки заказов</div>
+                    </button>
+
+                    <button class="admin-btn" data-module="Отчёты" id="goToReportsBtn">
+                        <div class="admin-btn-icon">📊</div>
+                        <div class="admin-btn-title">Отчёты</div>
+                        <div class="admin-btn-desc">Статистика и отчёты</div>
+                    </button>
+
+                    <button class="admin-btn admin-btn-danger" id="logoutBtn">
+                        <div class="admin-btn-icon">🚪</div>
+                        <div class="admin-btn-title">Выйти</div>
+                        <div class="admin-btn-desc">Выйти из системы</div>
+                    </button>
+                </div>
+            </div>
+
+            <div class="info-section">
+                <h3>ℹ️ Информация</h3>
+                <p>Доступные модули определяются вашими правами.</p>
+            </div>
+        </main>
+    </div>
+
+    <script src="auth.js"></script>
+    <script src="dashboard.js"></script>
+</body>
+</html>

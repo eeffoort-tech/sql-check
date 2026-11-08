@@ -15,6 +15,32 @@ const WAREHOUSE = {
     reserveData: {}, // { kod: koli } — резерв из zakaz (status 1–4)
     availableData: {}, // { kod: available }
     isOptCached: {}, // { kod: boolean } — является ли оптовиком
+    isSavingPlan: false, // флаг: идёт запись в БД из поля "План"
+    planSaveTimeout: null, // debounce таймер для поля "План"
+    isSavingAllPlan: false, // флаг: идёт массовое сохранение (saveAllPlanAndGo)
+    planSaveMutex: {}, // mutex (замок) для защиты параллельных вызовов по kod
+    pendingBlurPromises: [], // Массив Promise от blur событий
+
+    // ============================================================
+    // DEBOUNCE: loadReserve + recalcAllOptAvail вызываются 1 раз
+    // через 300мс после последнего blur (не после каждого)
+    // ============================================================
+    schedulePlanSync() {
+        if (this.planSyncTimeout) {
+            clearTimeout(this.planSyncTimeout);
+        }
+        this.planSyncTimeout = setTimeout(async () => {
+            this.planSyncTimeout = null;
+            try {
+                await this.loadReserve();
+                this.updateAllRowsAvailability();
+                await this.recalcAllOptAvail();
+                console.log('[schedulePlanSync] sync completed');
+            } catch (e) {
+                console.error('[schedulePlanSync] sync error:', e);
+            }
+        }, 300);
+    },
 
     async init() {
         this.serverIp = localStorage.getItem('serverIp');
@@ -22,6 +48,27 @@ const WAREHOUSE = {
             window.location.href = 'login.html';
             return;
         }
+
+        // Проверяем, что мы на странице склада
+        const container = document.getElementById('warehouseTableContainer');
+        if (!container) {
+            console.log('[warehouse] Не найдён warehouseTableContainer — пропускаем инициализацию');
+            return;
+        }
+
+        // Скрываем все модальные окна при загрузке страницы
+        document.querySelectorAll('.warehouse-modal').forEach(modal => {
+            modal.style.display = 'none';
+        });
+
+        // Скрываем модальные окна при возврате на страницу (из orders.html или других)
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                document.querySelectorAll('.warehouse-modal').forEach(modal => {
+                    modal.style.display = 'none';
+                });
+            }
+        });
 
         // Загружаем имя пользователя из БД
         const userId = localStorage.getItem('userId');
@@ -55,6 +102,15 @@ const WAREHOUSE = {
         this.domCache = {};
         this.minCache = {};  // { kod: min }
         this.maxCache = {};  // { kod: max }
+
+        // Фильтры по типу
+        this.typeFilter = {
+            Tov: localStorage.getItem('typeFilter_Tov') !== 'false',
+            Vnut: localStorage.getItem('typeFilter_Vnut') !== 'false',
+            Rash: localStorage.getItem('typeFilter_Rash') !== 'false',
+            Upak: localStorage.getItem('typeFilter_Upak') !== 'false',
+        };
+        this.initTypeFilters(); // Инициализация фильтров
 
         // Получаем номер сессии и загружаем резерв перед загрузкой данных
         this.currentSessionNomer = await this.getDayNomer();
@@ -105,6 +161,40 @@ const WAREHOUSE = {
     },
 
     // ============================================================
+    // ФИЛЬТРЫ ПО ТИПУ
+    // ============================================================
+    initTypeFilters() {
+        const filters = document.querySelectorAll('#typeFilters input[type="checkbox"]');
+        filters.forEach(cb => {
+            // Устанавливаем начальное состояние из state
+            const key = cb.id.replace('filter', '');
+            cb.checked = this.typeFilter[key] !== false;
+        });
+        this.bindTypeFilters();
+    },
+
+    bindTypeFilters() {
+        const filters = document.querySelectorAll('#typeFilters input[type="checkbox"]');
+        filters.forEach(cb => {
+            cb.addEventListener('change', (e) => {
+                const key = e.target.id.replace('filter', '');
+                this.typeFilter[key] = e.target.checked;
+
+                // Сохраняем в localStorage
+                localStorage.setItem('typeFilter_' + key, e.target.checked ? 'true' : 'false');
+
+                // Перерисовываем таблицу
+                this.renderFilteredTable();
+            });
+        });
+    },
+
+    renderFilteredTable() {
+        // Перезагружаем данные с текущими фильтрами
+        this.loadData();
+    },
+
+    // ============================================================
     // ЗАГРУЗКА ИМЕНИ ПОЛЬЗОВАТЕЛЯ
     // ============================================================
     async loadUserName(userId, displayElement) {
@@ -136,76 +226,50 @@ const WAREHOUSE = {
     },
 
     // ============================================================
-    // НОМЕР СЕССИИ (ГГММДДXXX) — персистируемый через localStorage
+    // НОМЕР СЕССИИ (Z-XXXXX) — уникальный, генерируется при каждом открытии
     // ============================================================
     async getDayNomer() {
-        const userId = localStorage.getItem('userId') || '';
-        const key = 'warehouse_currentNomer_' + userId;
-        
-        let nomer = localStorage.getItem(key);
-        
-        if (!nomer) {
-            // Генерируем новый номер
-            const now = new Date();
-            const dayPrefix =
-                String(now.getFullYear()).slice(2) +
-                String(now.getMonth() + 1).padStart(2, '0') +
-                String(now.getDate()).padStart(2, '0');
-    
-            try {
-                const result = await this.query(
-                    `SELECT "nomer" FROM "zakaz" WHERE "nomer" LIKE '${dayPrefix}%' ORDER BY "nomer" DESC LIMIT 1`
-                );
-                if (result && result.trim()) {
-                    const lines = result.trim().split('\n').filter(l => l);
-                    if (lines.length >= 2) {
-                        const lastNomer = lines[1].split('\t')[0]?.trim();
-                        if (lastNomer) {
-                            const suffix = parseInt(lastNomer.slice(-3)) + 1;
-                            nomer = dayPrefix + String(suffix).padStart(3, '0');
-                        }
-                    }
-                }
-            } catch (e) {
-                console.error('Ошибка получения nomer:', e);
-            }
-    
-            // Если всё ещё нет — начинаем с 001
-            if (!nomer) {
-                const now = new Date();
-                const dayPrefix =
-                    String(now.getFullYear()).slice(2) +
-                    String(now.getMonth() + 1).padStart(2, '0') +
-                    String(now.getDate()).padStart(2, '0');
-                nomer = dayPrefix + '001';
-            }
-    
-            // Сохраняем в localStorage для текущей сессии
-            localStorage.setItem(key, nomer);
-        }
-        
-        return nomer;
+        return 'Z-' + Date.now();
     },
-    
+
     // ============================================================
     // УДАЛЕНИЕ НОМЕРА СЕССИИ (после создания заказа или очистки)
     // ============================================================
     clearCurrentNomer() {
-        const userId = localStorage.getItem('userId') || '';
-        localStorage.removeItem('warehouse_currentNomer_' + userId);
+        this.currentSessionNomer = null;
     },
     
     // ============================================================
-    // ОЧИСТКА ВЧЕРАШНИХ ПЛАНОВ (status=1,2)
-    // Удаляем ВСЕ планы, т.к. status=1,2 — это только на сегодня
+    // ОЧИСТКА СТАРЫХ ПЛАНОВ (status=1,2)
+    // Удаляем планы, у которых дата != сегодня
     // ============================================================
     async cleanupOldPlans() {
-        console.log('[cleanupOldPlans] Удаляем все вчерашние планы (status=1,2)...');
+        const today = new Date().toISOString().split('T')[0];
+        console.log('[cleanupOldPlans] Сегодня:', today);
+
         try {
-            await this.query(
-                `DELETE FROM "zakaz" WHERE "status" IN (1, 2)`
+            const result = await this.query(
+                `SELECT COUNT(*) as "cnt" FROM "zakaz" WHERE "status" IN (1, 2) AND "data" != '${today}'`
             );
-            console.log('[cleanupOldPlans] Вчерашние планы удалены');
+
+            if (result?.trim()) {
+                const lines = result.trim().split('\n').filter(l => l);
+                if (lines.length > 1) {
+                    const headers = lines[0].split('\t').map(h => h.trim().toLowerCase());
+                    const cntIdx = headers.indexOf('cnt');
+                    const parts = lines[1].split('\t');
+                    const cnt = parseInt(parts[cntIdx]) || 0;
+
+                    if (cnt > 0) {
+                        await this.query(
+                            `DELETE FROM "zakaz" WHERE "status" IN (1, 2) AND "data" != '${today}'`
+                        );
+                        console.log(`[cleanupOldPlans] Удалено ${cnt} старых планов`);
+                    } else {
+                        console.log('[cleanupOldPlans] Старых планов нет');
+                    }
+                }
+            }
         } catch (e) {
             console.error('[cleanupOldPlans] Ошибка удаления:', e);
         }
@@ -245,38 +309,29 @@ const WAREHOUSE = {
     },
 
     // ============================================================
-    // СОХРАНЕНИЕ В ZAKAZ (НЕОПТОВИК, status=2)
+    // СОХРАНЕНИЕ В ZAKAZ (НЕОПТОВИК, status=1)
     // ============================================================
-    async saveToZakaz(kod, koli) {
+    async saveToZakaz(kod, koli, nomer, dataStr, timeStr) {
         try {
             const userId = localStorage.getItem('userId') || '';
-            const nomer = this.currentSessionNomer;
+            const userName = localStorage.getItem('userName') || userId;
             if (!nomer) return;
 
-            const now = new Date();
-            const dataStr = now.toISOString().split('T')[0];
-            const timeStr = now.toTimeString().split(' ')[0].slice(0, 5);
+            console.log(`[saveToZakaz] kod=${kod}, koli=${koli}, nomer=${nomer}, status=1`);
 
-            console.log(`[saveToZakaz] kod=${kod}, koli=${koli}, nomer=${nomer}, status=2`);
+            // Удаляем старую запись для текущего kod + nomer + user
+            const deleteSql = `DELETE FROM "zakaz" WHERE "kod"='${kod.replace(/'/g, "''")}' AND "nomer"='${nomer.replace(/'/g, "''")}' AND "user"='${userName.replace(/'/g, "''")}' AND "status"=1`;
+            console.log('[saveToZakaz] DELETE SQL (status=1):', deleteSql);
+            await this.query(deleteSql);
+            console.log('[saveToZakaz] DELETE выполнено');
 
-            // Удаляем старую запись status=2 (все, не только по nomer)
-            await this.query(
-                `DELETE FROM "zakaz" WHERE "kod"='${kod.replace(/'/g, "''")}' AND "status"=2`
-            );
-
-            // Если koli > 0 — создаём новую запись со статусом 2
+            // Если koli > 0 — создаём новую запись со статусом 1
             if (koli > 0) {
-                await this.query(
-                    `INSERT INTO "zakaz" ("kod", "koli", "nomer", "user", "status", "data", "time") ` +
-                    `VALUES ('${kod.replace(/'/g, "''")}', ${koli}, '${nomer}', '${userId.replace(/'/g, "''")}', 2, '${dataStr}', '${timeStr}')`
-                );
+                const insertSql = `INSERT INTO "zakaz" ("kod", "koli", "nomer", "user", "status", "data", "time") VALUES ('${kod.replace(/'/g, "''")}', ${koli}, '${nomer}', '${userName.replace(/'/g, "''")}', 1, '${dataStr}', '${timeStr}')`;
+                console.log('[saveToZakaz] INSERT SQL (status=1):', insertSql);
+                await this.query(insertSql);
+                console.log('[saveToZakaz] INSERT выполнено (status=1)');
             }
-
-            // СРАЗУ загружаем резерв после записи
-            await this.loadReserve();
-            console.log(`[saveToZakaz] После записи reserveData:`, this.reserveData);
-
-            console.log(`[saveToZakaz] zakaz: kod=${kod}, koli=${koli}, nomer=${nomer}, status=2`);
         } catch (e) {
             console.error('Ошибка записи в zakaz:', e);
         }
@@ -286,62 +341,66 @@ const WAREHOUSE = {
     // СОХРАНЕНИЕ ОПТОВОГО ТОВАРА (САМ + КОМПОНЕНТЫ)
     // Возвращает массив kod компонентов, которые были записаны
     // ============================================================
-    async saveOptPlanToZakaz(kod, koli) {
+    async saveOptPlanToZakaz(kod, koli, nomer, dataStr, timeStr) {
+        // Получаем блокировку — не даём параллельным вызовам дублировать запись
+        await this.acquireLock(kod);
+        console.log('[saveOptPlanToZakaz] БЛОКИРОВАНО kod=' + kod);
+
         try {
             const userId = localStorage.getItem('userId') || '';
-            const nomer = this.currentSessionNomer;
+            const userName = localStorage.getItem('userName') || userId;
             if (!nomer) return [];
 
-            const now = new Date();
-            const dataStr = now.toISOString().split('T')[0];
-            const timeStr = now.toTimeString().split(' ')[0].slice(0, 5);
+            console.log('[saveOptPlanToZakaz] START kod=' + kod + ', koli=' + koli + ', nomer=' + nomer);
 
             // Загружаем ТОЛЬКО компоненты с type="Товар"
             const components = await this.getApprovedComponents(kod);
+            console.log('[saveOptPlanToZakaz] Компоненты:', components.map(c => c.kod + '=' + c.koliPerUnit));
 
-            // Удаляем старую запись оптовика (только статус 1 — текущая сессия)
-            await this.query(
-                `DELETE FROM "zakaz" WHERE "kod"='${kod.replace(/'/g, "''")}' AND "nomer"='${nomer}' AND "user"='${userId.replace(/'/g, "''")}' AND "status"=1`
-            );
+            // Удаляем ТОЛЬКО статус 2 для оптовика по kod + nomer + user
+            const deleteOpt = `DELETE FROM "zakaz" WHERE "kod"='${kod.replace(/'/g, "''")}' AND "nomer"='${nomer.replace(/'/g, "''")}' AND "user"='${userName.replace(/'/g, "''")}' AND "status"=2`;
+            console.log('[saveOptPlanToZakaz] DELETE оптовик SQL (по kod+nomer+user):', deleteOpt);
+            await this.query(deleteOpt);
 
-            // Удаляем старые записи компонентов (только статус 1 — текущая сессия)
+            // Удаляем старые записи компонентов (статус=2) по kod + nomer + user
             if (components.length > 0) {
                 for (const comp of components) {
-                    await this.query(
-                        `DELETE FROM "zakaz" WHERE "kod"='${comp.kod.replace(/'/g, "''")}' AND "nomer"='${nomer}' AND "user"='${userId.replace(/'/g, "''")}' AND "status"=1`
-                    );
+                    const deleteComp = `DELETE FROM "zakaz" WHERE "kod"='${comp.kod.replace(/'/g, "''")}' AND "nomer"='${nomer.replace(/'/g, "''")}' AND "user"='${userName.replace(/'/g, "''")}' AND "status"=2`;
+                    console.log('[saveOptPlanToZakaz] DELETE компонент SQL (по kod+nomer+user):', deleteComp);
+                    await this.query(deleteComp);
                 }
             }
 
             // Если koli <= 0 — всё удалено, возвращаем список компонентов для обновления
             if (koli <= 0) {
-                console.log(`План удалён для ${kod}`);
+                console.log(`[saveOptPlanToZakaz] koli=0, удаляем`);
                 return components.map(c => c.kod);
             }
 
-            // Записываем оптовика (статус 1)
-            await this.query(
-                `INSERT INTO "zakaz" ("kod", "koli", "nomer", "user", "status", "data", "time") ` +
-                `VALUES ('${kod.replace(/'/g, "''")}', ${koli}, '${nomer}', '${userId.replace(/'/g, "''")}', 1, '${dataStr}', '${timeStr}')`
-            );
+            // Записываем ТОЛЬКО оптовика (статус 2)
+            // Компоненты вставляем автоматически со статусом 2
+            console.log('[saveOptPlanToZakaz] Записываем оптовик (status=2)');
+            const insertOpt = `INSERT INTO "zakaz" ("kod", "koli", "nomer", "user", "status", "data", "time") VALUES ('${kod.replace(/'/g, "''")}', ${koli}, '${nomer}', '${userName}', 2, '${dataStr}', '${timeStr}')`;
+            await this.query(insertOpt);
 
-            // Записываем компоненты (статус 1)
+            // Записываем компоненты (статус 2)
             const wroteKods = [];
             for (const comp of components) {
                 const totalKoli = koli * comp.koliPerUnit;
-                await this.query(
-                    `INSERT INTO "zakaz" ("kod", "koli", "nomer", "user", "status", "data", "time") ` +
-                    `VALUES ('${comp.kod.replace(/'/g, "''")}', ${totalKoli}, '${nomer}', '${userId.replace(/'/g, "''")}', 1, '${dataStr}', '${timeStr}')`
-                );
-                console.log(`zakaz: komponent ${comp.kod} = ${totalKoli} (${comp.koliPerUnit}x${koli})`);
+                const insertComp = `INSERT INTO "zakaz" ("kod", "koli", "nomer", "user", "status", "data", "time") VALUES ('${comp.kod.replace(/'/g, "''")}', ${totalKoli}, '${nomer}', '${userName}', 2, '${dataStr}', '${timeStr}')`;
+                console.log('[saveOptPlanToZakaz] INSERT компонент (status=2):', insertComp);
+                await this.query(insertComp);
                 wroteKods.push(comp.kod);
             }
 
-            console.log(`Оптовик ${kod} записан с составом: koli=${koli}`);
+            console.log(`[saveOptPlanToZakaz] Оптовик ${kod} записан с составом: koli=${koli}, comps=` + wroteKods);
             return wroteKods;
         } catch (e) {
             console.error('Ошибка записи оптовика:', e);
             return [];
+        } finally {
+            this.releaseLock(kod);
+            console.log('[saveOptPlanToZakaz] РАЗБЛОКИРОВАНО kod=' + kod);
         }
     },
 
@@ -357,13 +416,14 @@ const WAREHOUSE = {
             const now = new Date();
             const dataStr = now.toISOString().split('T')[0];
             const timeStr = now.toTimeString().split(' ')[0].slice(0, 5);
+            const userName = localStorage.getItem('userName') || userId;
 
             // УДАЛЯЕМ ВСЕ status=1,2,4 для текущего nomer+user (а не только по kod)
             // Критично для оптовиков: при удалении только по kod компоненты оптовика
             // не удаляются (у них другой kod), и при INSERT они дублируются.
             // Решение: чистим всё по nomer+user перед записью нового плана.
             await this.query(
-                `DELETE FROM "zakaz" WHERE "nomer"='${nomer.replace(/'/g, "''")}' AND "user"='${userId.replace(/'/g, "''")}' AND "status" IN (1, 2, 4)`
+                `DELETE FROM "zakaz" WHERE "nomer"='${nomer.replace(/'/g, "''")}' AND "user"='${userName.replace(/'/g, "''")}' AND "status" IN (1, 2, 4)`
             );
 
             // Проверяем, является ли товар оптовым
@@ -378,7 +438,7 @@ const WAREHOUSE = {
                 // Оптовик — записываем сам
                 await this.query(
                     `INSERT INTO "zakaz" ("kod", "koli", "nomer", "user", "status", "data", "time") ` +
-                    `VALUES ('${kod.replace(/'/g, "''")}', ${newQuantity}, '${nomer}', '${userId.replace(/'/g, "''")}', 2, '${dataStr}', '${timeStr}')`
+                    `VALUES ('${kod.replace(/'/g, "''")}', ${newQuantity}, '${nomer}', '${userName.replace(/'/g, "''")}', 2, '${dataStr}', '${timeStr}')`
                 );
 
                 // Записываем ТОЛЬКО компоненты с type="Товар"
@@ -388,14 +448,14 @@ const WAREHOUSE = {
                     const totalKoli = newQuantity * comp.koliPerUnit;
                     await this.query(
                         `INSERT INTO "zakaz" ("kod", "koli", "nomer", "user", "status", "data", "time") ` +
-                        `VALUES ('${comp.kod.replace(/'/g, "''")}', ${totalKoli}, '${nomer}', '${userId.replace(/'/g, "''")}', 2, '${dataStr}', '${timeStr}')`
+                        `VALUES ('${comp.kod.replace(/'/g, "''")}', ${totalKoli}, '${nomer}', '${userName.replace(/'/g, "''")}', 2, '${dataStr}', '${timeStr}')`
                     );
                 }
             } else if (newQuantity > 0) {
                 // Обычный товар
                 await this.query(
                     `INSERT INTO "zakaz" ("kod", "koli", "nomer", "user", "status", "data", "time") ` +
-                    `VALUES ('${kod.replace(/'/g, "''")}', ${newQuantity}, '${nomer}', '${userId.replace(/'/g, "''")}', 2, '${dataStr}', '${timeStr}')`
+                    `VALUES ('${kod.replace(/'/g, "''")}', ${newQuantity}, '${nomer}', '${userName.replace(/'/g, "''")}', 2, '${dataStr}', '${timeStr}')`
                 );
             }
         } catch (e) {
@@ -404,9 +464,21 @@ const WAREHOUSE = {
     },
 
     // ============================================================
-    // СИНХРОНИЗАЦИЯ ПЛАНА С ZAKAZ
+    // СИНХРОНИЗАЦИЯ ПЛАНА С ZAKAZ (ОПТИМИЗИРОВАННАЯ)
+    // Только запись в БД — без loadReserve/recalc (делается 1 раз на все изменения)
     // ============================================================
     async syncPlanToZakaz(kod, newQuantity) {
+        console.log('[syncPlanToZakaz] START kod=' + kod + ', koli=' + newQuantity);
+
+        const userId = localStorage.getItem('userId') || '';
+        const userName = localStorage.getItem('userName') || userId;
+        const nomer = this.currentSessionNomer;
+        if (!nomer) return;
+
+        const now = new Date();
+        const dataStr = now.toISOString().split('T')[0];
+        const timeStr = now.toTimeString().split(' ')[0].slice(0, 5);
+
         // Проверяем, является ли товар оптовым
         const optResult = await this.query(
             `SELECT "opt" FROM "guide" WHERE "kod"='${kod.replace(/'/g, "''")}' LIMIT 1`
@@ -414,43 +486,22 @@ const WAREHOUSE = {
 
         const optLines = optResult?.trim().split('\n').filter(l => l);
         const isOpt = optLines?.length >= 2 && optLines[1]?.trim() === 'Сборка';
+        console.log('[syncPlanToZakaz] isOpt=' + isOpt);
 
         if (isOpt) {
-            // Оптовик — записываем сам + состав, получаем список записанных компонентов
-            const compKods = await this.saveOptPlanToZakaz(kod, newQuantity);
-
-            // Перезагружаем резерв из БД (статусы 1, 2, 3)
-            await this.loadReserve();
-
-            // Обновляем строку оптовика
-            this.updateRowAvailability(kod, this.reserveData[kod] || 0);
-
-            // Обновляем строки ВСЕХ компонентов
-            if (compKods && compKods.length > 0) {
-                for (const compKod of compKods) {
-                    this.updateRowAvailability(compKod, this.reserveData[compKod] || 0);
-                }
-            }
-
-            // Пересчитываем ВСЕХ оптовиков
-            await this.recalcAllOptAvail();
+            // Оптовик — записываем сам + состав
+            await this.saveOptPlanToZakaz(kod, newQuantity, nomer, dataStr, timeStr);
         } else {
             // Обычный товар
             if (newQuantity > 0) {
-                await this.saveToZakaz(kod, newQuantity);
+                await this.saveToZakaz(kod, newQuantity, nomer, dataStr, timeStr);
             } else {
-                await this.saveToZakaz(kod, 0);
+                await this.saveToZakaz(kod, 0, nomer, dataStr, timeStr);
             }
-
-            // Перезагружаем резерв из БД (статусы 1, 2, 3)
-            await this.loadReserve();
-
-            // Обновляем строку этого товара
-            this.updateRowAvailability(kod, this.reserveData[kod] || 0);
-
-            // Пересчитываем ВСЕХ оптовиков
-            await this.recalcAllOptAvail();
         }
+
+        // ВЫЗЫВАЮЩИЙ должен вызвать loadReserve() + recalcAllOptAvail() ОДИН РАЗ ПОСЛЕ ВСЕХ ИЗМЕНЕНИЙ
+        console.log('[syncPlanToZakaz] END kod=' + kod);
     },
 
     // ============================================================
@@ -731,7 +782,37 @@ const WAREHOUSE = {
         };
 
         safeAdd('#backBtn', 'click', () => {
-            window.location.href = 'admin.html';
+            // Скрываем модальные окна перед возвратом
+            const loadingModal = document.getElementById('loadingModal');
+            if (loadingModal) loadingModal.style.display = 'none';
+
+            // Скрываем другие модальные окна
+            document.querySelectorAll('.warehouse-modal').forEach(modal => {
+                if (modal.id !== 'loadingModal') {
+                    modal.style.display = 'none';
+                }
+            });
+
+            // Используем replace, чтобы кнопка "Назад" не возвращала к модальному окну
+            window.history.back();
+        });
+
+        // === Очистка полей «План» при возврате из bfcache (кнопка «Назад» на orders.html) ===
+        if (window.addEventListener) {
+            window.addEventListener('pageshow', (event) => {
+                // event.persisted === true означает восстановление из bfcache
+                if (event.persisted) {
+                    const planInputs = document.querySelectorAll('input[data-field="plan"]');
+                    planInputs.forEach((input) => {
+                        input.value = '';
+                    });
+                    console.log('[warehouse] Очищены поля «План» после возврата из bfcache');
+                }
+            });
+        }
+
+        safeAdd('#goToSalaryBtn', 'click', () => {
+            window.location.href = 'my-salary.html';
         });
 
         safeAdd('#acceptStockBtn', 'click', () => {
@@ -740,10 +821,6 @@ const WAREHOUSE = {
 
         safeAdd('#sdelanoBtn', 'click', () => {
             this.saveToSdelanoAndGo();
-        });
-
-        safeAdd('#refreshBtn', 'click', () => {
-            this.loadData();
         });
 
         safeAdd('#columnsBtn', 'click', () => {
@@ -1112,9 +1189,9 @@ const WAREHOUSE = {
             }
         });
 
-        // Кнопка "Создать заказ"
+        // Кнопка "Создать заказ" → перейти на страницу заказов
         safeAdd('#createOrderBtn', 'click', () => {
-            this.openCreateOrderModal();
+            this.saveAllPlanAndGo();
         });
 
         // Кнопка "Очистить план"
@@ -1122,40 +1199,24 @@ const WAREHOUSE = {
             this.clearPlan();
         });
 
-        // Кнопка "Все заказы" из модалки создания заказа
+        // Кнопка "Все заказы" → перейти на страницу заказов
         safeAdd('#showAllOrdersFromCreateBtn', 'click', () => {
-            this.openOrdersModal();
-        });
-        
-        // Кнопка "План на сегодня" из модалки создания заказа
-        safeAdd('#showTodayPlanBtn', 'click', () => {
-            this.showTodayPlanModal();
+            window.location.href = 'orders.html';
         });
 
-        // Сохранить заказ
+        // Кнопка "План на сегодня" → перейти на страницу заказов
+        safeAdd('#showTodayPlanBtn', 'click', () => {
+            window.location.href = 'orders.html';
+        });
+
+        // Сохранить заказ (пока не используется, оставлю на всякий случай)
         safeAdd('#saveOrderBtn', 'click', () => {
             this.saveOrder();
         });
 
-        // Сохранить как черновик
+        // Сохранить как черновик (пока не используется)
         safeAdd('#saveAsDraftBtn', 'click', () => {
             this.saveAsDraft();
-        });
-
-        // Отмена заказа
-        safeAdd('#cancelOrderBtn', 'click', () => {
-            this.closeCreateOrderModal();
-        });
-
-        // Закрытие модалки заказа по крестику
-        safeAdd('#createOrderModal .btn-modal-close', 'click', () => {
-            this.closeCreateOrderModal();
-        });
-
-        safeAdd('#createOrderModal', 'click', (e) => {
-            if (e.target.classList.contains('warehouse-modal-overlay')) {
-                this.closeCreateOrderModal();
-            }
         });
 
         // Закрытие полноэкранного просмотра
@@ -1253,515 +1314,141 @@ const WAREHOUSE = {
     },
 
     // ============================================================
-    // МОДАЛЬНОЕ ОКНО "СОЗДАТЬ ЗАКАЗ"
-    // ============================================================
-    openCreateOrderModal() {
-        document.getElementById('orderNomer').textContent = `[${this.currentSessionNomer}]`;
-        this.updateTodayPlanInfo();
-        this.loadOrderItemsFromDOM();
-        document.getElementById('createOrderModal').style.display = 'flex';
-    },
-    
-    // Обновляем информацию о плане на сегодня
-    async updateTodayPlanInfo() {
-        const now = new Date();
-        const todayPrefix =
-            String(now.getFullYear()).slice(2) +
-            String(now.getMonth() + 1).padStart(2, '0') +
-            String(now.getDate()).padStart(2, '0');
-
-        try {
-            const result = await this.query(
-                `SELECT "nomer", COUNT(*) as "cnt" FROM (SELECT "nomer", "kod" FROM "zakaz" WHERE "status" IN (1, 2) AND "nomer" LIKE '${todayPrefix}%' GROUP BY "nomer", "kod") GROUP BY "nomer" ORDER BY "nomer" DESC`
-            );
-
-            if (result && result.trim()) {
-                const lines = result.trim().split('\n').filter(l => l);
-                let totalItems = 0;
-                let mainNomer = '—';
-
-                for (let i = 1; i < lines.length; i++) {
-                    const parts = lines[i].split('\t');
-                    const nomer = parts[0]?.trim();
-                    const count = parseInt(parts[1]) || 0;
-                    totalItems += count;
-                    if (nomer === this.currentSessionNomer) {
-                        mainNomer = nomer;
-                    }
-                }
-
-                document.getElementById('todayPlanNomer').textContent = mainNomer;
-                document.getElementById('todayPlanCount').textContent = totalItems;
-            } else {
-                document.getElementById('todayPlanNomer').textContent = '—';
-                document.getElementById('todayPlanCount').textContent = '0';
-            }
-        } catch (e) {
-            console.error('Ошибка обновления инфо о плане:', e);
-            document.getElementById('todayPlanNomer').textContent = '—';
-            document.getElementById('todayPlanCount').textContent = '0';
-        }
-    },
-    
-    // Показать план на сегодня (открываем модалку "Все заказы" с планом на сегодня)
-    async showTodayPlanModal() {
-        // Просто показываем "Все заказы" — пользователь увидит план на сегодня в списке
-        this.openOrdersModal();
-    },
-
-    closeCreateOrderModal() {
-        document.getElementById('createOrderModal').style.display = 'none';
-    },
-
-    // Собираем все значения Plan из DOM таблицы (без записи в БД)
-    gatherPlanFromDOM() {
-        const container = document.getElementById('warehouseTableContainer');
-        if (!container) return [];
-
-        const items = [];
-        container.querySelectorAll('input[data-field="plan"]').forEach(input => {
-            const kod = input.getAttribute('data-kod');
-            const raw = input.value.trim();
-            const value = raw ? (parseInt(raw) || 0) : 0;
-            if (value > 0) {
-                items.push({ kod, koli: value });
-            }
-        });
-
-        console.log(`[gatherPlanFromDOM] Собрано ${items.length} товаров с Plan`);
-        return items;
-    },
-
-    async loadOrderItemsFromDOM() {
-        const items = this.gatherPlanFromDOM();
-        const tbody = document.getElementById('orderItemsBody');
-        const emptyMsg = document.getElementById('orderEmptyMsg');
-        const saveBtn = document.getElementById('saveOrderBtn');
-
-        tbody.innerHTML = '';
-
-        if (items.length === 0) {
-            emptyMsg.style.display = 'block';
-            saveBtn.disabled = true;
-            return;
-        }
-
-        // Собираем уникальные kod для загрузки артикулов
-        const uniqueKods = [...new Set(items.map(i => i.kod))];
-        const optKodList = uniqueKods.map(k => `'${k.replace(/'/g, "''")}'`).join(',');
-
-        const optResult = await this.query(
-            `SELECT "kod", "art", "opt" FROM "guide" WHERE "kod" IN (${optKodList})`
-        );
-
-        const artResult = {};
-        const optKods = new Set();
-        if (optResult?.trim()) {
-            const optLines = optResult.trim().split('\n').filter(l => l);
-            if (optLines.length > 1) {
-                const optHeaders = optLines[0].split('\t').map(h => h.trim().toLowerCase());
-                const optKodIdx = optHeaders.indexOf('kod');
-                const artIdx = optHeaders.indexOf('art');
-                const optValIdx = optHeaders.indexOf('opt');
-                for (let i = 1; i < optLines.length; i++) {
-                    const parts = optLines[i].split('\t');
-                    const k = optKodIdx >= 0 ? parts[optKodIdx]?.trim() : '';
-                    const a = artIdx >= 0 ? parts[artIdx]?.trim() : '—';
-                    const o = optValIdx >= 0 ? parts[optValIdx]?.trim() : '';
-                    if (k) artResult[k] = { art: a || '—', isOpt: o === 'Сборка' };
-                    if (k && o === 'Сборка') optKods.add(k);
-                }
-            }
-        }
-
-        // Показываем все товары с Plan
-        let showCount = 0;
-        for (const item of items) {
-            const kod = item.kod;
-            const koli = item.koli;
-            if (!kod) continue;
-
-            const info = artResult[kod] || { art: '—', isOpt: false };
-            showCount++;
-
-            tbody.innerHTML += `<tr>
-                <td>${this.escapeHtml(kod)}</td>
-                <td>${this.escapeHtml(info.art)}</td>
-                <td>${this.escapeHtml(koli)}</td>
-            </tr>`;
-        }
-
-        if (showCount === 0) {
-            emptyMsg.style.display = 'block';
-            saveBtn.disabled = true;
-        } else {
-            emptyMsg.style.display = 'none';
-            saveBtn.disabled = false;
-        }
-    },
-
-    async loadOrderItems() {
-        const userId = localStorage.getItem('userId') || '';
-        const tbody = document.getElementById('orderItemsBody');
-        const emptyMsg = document.getElementById('orderEmptyMsg');
-        const saveBtn = document.getElementById('saveOrderBtn');
-
-        try {
-            const result = await this.query(
-                `SELECT "kod", "koli" FROM "zakaz" WHERE "nomer"='${this.currentSessionNomer}' AND "user"='${userId}' AND "status" IN (1, 2)`
-            );
-
-            tbody.innerHTML = '';
-
-            if (!result || !result.trim()) {
-                emptyMsg.style.display = 'block';
-                saveBtn.disabled = true;
-                return;
-            }
-
-            const lines = result.trim().split('\n').filter(l => l);
-
-            if (lines.length <= 1) {
-                emptyMsg.style.display = 'block';
-                saveBtn.disabled = true;
-                return;
-            }
-
-            // Собираем уникальные kod
-            const orderKods = [];
-            for (let i = 1; i < lines.length; i++) {
-                const parts = lines[i].split('\t');
-                const kod = parts[0]?.trim();
-                if (kod) orderKods.push(kod);
-            }
-
-            // Загружаем артикулы и типы
-            const optKodList = orderKods.map(k => `'${k.replace(/'/g, "''")}'`).join(',');
-            const optResult = await this.query(
-                `SELECT "kod", "art", "opt" FROM "guide" WHERE "kod" IN (${optKodList})`
-            );
-
-            const artResult = {};
-            const optKods = new Set();
-            if (optResult?.trim()) {
-                const optLines = optResult.trim().split('\n').filter(l => l);
-                if (optLines.length > 1) {
-                    const optHeaders = optLines[0].split('\t').map(h => h.trim().toLowerCase());
-                    const optKodIdx = optHeaders.indexOf('kod');
-                    const artIdx = optHeaders.indexOf('art');
-                    const optValIdx = optHeaders.indexOf('opt');
-                    for (let i = 1; i < optLines.length; i++) {
-                        const parts = optLines[i].split('\t');
-                        const k = optKodIdx >= 0 ? parts[optKodIdx]?.trim() : '';
-                        const a = artIdx >= 0 ? parts[artIdx]?.trim() : '—';
-                        const o = optValIdx >= 0 ? parts[optValIdx]?.trim() : '';
-                        if (k) artResult[k] = { art: a || '—', isOpt: o === 'Сборка' };
-                        if (k && o === 'Сборка') optKods.add(k);
-                    }
-                }
-            }
-
-            // Показываем все товары из статуса 1 и 2
-            let showCount = 0;
-            for (let i = 1; i < lines.length; i++) {
-                const parts = lines[i].split('\t');
-                const kod = parts[0]?.trim() || '';
-                const koli = parts[1]?.trim() || '0';
-                if (!kod) continue;
-
-                const info = artResult[kod] || { art: '—', isOpt: false };
-                showCount++;
-
-                tbody.innerHTML += `<tr>
-                    <td>${this.escapeHtml(kod)}</td>
-                    <td>${this.escapeHtml(info.art)}</td>
-                    <td>${this.escapeHtml(koli)}</td>
-                </tr>`;
-            }
-
-            if (showCount === 0) {
-                emptyMsg.style.display = 'block';
-                saveBtn.disabled = true;
-            } else {
-                emptyMsg.style.display = 'none';
-                saveBtn.disabled = false;
-            }
-        } catch (e) {
-            console.error('Ошибка загрузки товаров заказа:', e);
-            emptyMsg.textContent = 'Ошибка загрузки';
-            emptyMsg.style.display = 'block';
-            saveBtn.disabled = true;
-        }
-    },
-
-    async saveOrder() {
-        const userId = localStorage.getItem('userId') || '';
-        const now = new Date();
-        const dataStr = now.toISOString().split('T')[0];
-        const timeStr = now.toTimeString().split(' ')[0].slice(0, 5);
-
-        try {
-            // Собираем данные из DOM (Plan поля), а не из БД — так надёжнее
-            const items = this.gatherPlanFromDOM();
-
-            if (items.length === 0) {
-                alert('❌ Нет товаров с Plan для заказа');
-                return;
-            }
-
-            // === ПРИНУДИТЕЛЬНАЯ СИНХРОНИЗАЦИЯ DOM -> БД ===
-            // Если пользователь не убрал фокус из ячейки Plan, syncPlanToZakaz не успел записать
-            // в БД. Здесь мы принудительно синхронизируем все товары.
-            console.log('[saveOrder] Принудительная синхронизация:', items.length, 'товаров');
-            for (const item of items) {
-                await this.syncPlanToZakazFast(item.kod, item.koli);
-            }
-
-            // Перезагружаем reserve из БД (содержит актуальные plan значения)
-            await this.loadReserve();
-            console.log('[saveOrder] reserveData после синхронизации:', this.reserveData);
-
-            // Пересчитываем availableData на основе актуального reserve
-            for (const item of items) {
-                const kod = item.kod;
-                const totalWh = this.assembledWarehouse?.[kod] || this.warehouseCache?.[kod] || 0;
-                const reserve = this.reserveData[kod] || 0;
-                this.availableData[kod] = Math.floor(totalWh - reserve);
-            }
-            console.log('[saveOrder] availableData после пересчёта:', this.availableData);
-
-            // Находим оптовиков среди выбранных товаров
-            const optKodList = items.map(i => `'${i.kod.replace(/'/g, "''")}'`).join(',');
-            const optResult = await this.query(
-                `SELECT "kod", "opt" FROM "guide" WHERE "kod" IN (${optKodList})`
-            );
-
-            const optKods = new Set();
-            if (optResult?.trim()) {
-                const optLines = optResult.trim().split('\n').filter(l => l);
-                if (optLines.length > 1) {
-                    const optHeaders = optLines[0].split('\t').map(h => h.trim().toLowerCase());
-                    const optKodIdx = optHeaders.indexOf('kod');
-                    const optValIdx = optHeaders.indexOf('opt');
-                    for (let i = 1; i < optLines.length; i++) {
-                        const parts = optLines[i].split('\t');
-                        const k = optKodIdx >= 0 ? parts[optKodIdx]?.trim() : '';
-                        const v = optValIdx >= 0 ? parts[optValIdx]?.trim() : '';
-                        if (k && v === 'Сборка') optKods.add(k);
-                    }
-                }
-            }
-
-            // === ПРОВЕРКА ДОСТУПНОСТИ >= 0 ===
-            // Нельзя создать заказ если "Доступно" < 0 для любого товара
-            const negativeItems = [];
-            for (const item of items) {
-                const kod = item.kod;
-                const available = this.availableData[kod] ?? 0;
-                if (available < 0) {
-                    negativeItems.push({ kod, available });
-                }
-            }
-
-            if (negativeItems.length > 0) {
-                const kodList = negativeItems.map(i => i.kod).join(', ');
-                alert(`❌ Нельзя создать заказ — доступно меньше 0 для:\n${kodList}\n\nУвеличьте количество или уменьшите план.`);
-                return;
-            }
-
-            // Очищаем старые status=1,2,4
-            await this.query(
-                `DELETE FROM "zakaz" WHERE "nomer"='${this.currentSessionNomer.replace(/'/g, "''")}' AND "user"='${userId.replace(/'/g, "''")}' AND "status" IN (1, 2, 4)`
-            );
-
-            // Вставляем статус=3 для всех товаров
-            for (const item of items) {
-                const kod = item.kod;
-                const koli = item.koli;
-
-                if (optKods.has(kod)) {
-                    // Оптовик — записываем сам
-                    await this.query(
-                        `INSERT INTO "zakaz" ("kod", "koli", "nomer", "user", "status", "data", "time") ` +
-                        `VALUES ('${kod.replace(/'/g, "''")}', ${koli}, '${this.currentSessionNomer}', '${userId}', 3, '${dataStr}', '${timeStr}')`
-                    );
-
-                    // Записываем ТОЛЬКО компоненты с type="Товар"
-                    const components = await this.getApprovedComponents(kod);
-
-                    for (const comp of components) {
-                        const totalKoli = koli * comp.koliPerUnit;
-                        await this.query(
-                            `INSERT INTO "zakaz" ("kod", "koli", "nomer", "user", "status", "data", "time") ` +
-                            `VALUES ('${comp.kod.replace(/'/g, "''")}', ${totalKoli}, '${this.currentSessionNomer}', '${userId}', 3, '${dataStr}', '${timeStr}')`
-                        );
-                    }
-
-                    console.log(`Заказ сохранён: оптовик ${kod} = ${koli} + состав (status=3)`);
-                } else {
-                    // Обычный товар
-                    await this.query(
-                        `INSERT INTO "zakaz" ("kod", "koli", "nomer", "user", "status", "data", "time") ` +
-                        `VALUES ('${kod.replace(/'/g, "''")}', ${koli}, '${this.currentSessionNomer}', '${userId}', 3, '${dataStr}', '${timeStr}')`
-                    );
-                }
-            }
-
-            console.log(`Заказ ${this.currentSessionNomer} сохранён (status=3)`);
-            alert('✅ Заказ сохранён!');
-
-            // Перезагружаем резерв и таблицу
-            await this.loadReserve();
-            await this.loadData();
-
-            this.closeCreateOrderModal();
-            this.clearCurrentNomer(); // Сбрасываем сессию после создания заказа
-            this.openOrdersModal(); // Перезагрузить список заказов
-        } catch (e) {
-            console.error('Ошибка сохранения заказа:', e);
-            alert('❌ Ошибка сохранения заказа: ' + e.message);
-        }
-    },
-    
-    // ============================================================
-    // СОЗДАТЬ ЗАКАЗ ИЗ НОМЕРА (план или черновик → статус=3)
-    // ============================================================
-    async createOrderFromNommer(nomer, sourceStatus) {
-        const userId = localStorage.getItem('userId') || '';
-        const now = new Date();
-        const dataStr = now.toISOString().split('T')[0];
-        const timeStr = now.toTimeString().split(' ')[0].slice(0, 5);
-        
-        try {
-            // Генерируем новый nomer для заказа
-            const newNomer = await this.getDayNomer();
-            
-            // Получаем все товары из источника
-            const result = await this.query(
-                `SELECT "kod", SUM("koli") as "total" FROM "zakaz" WHERE "nomer"='${nomer.replace(/'/g, "''")}' AND "status"=${sourceStatus} GROUP BY "kod"`
-            );
-            
-            if (!result?.trim()) {
-                alert('❌ Нет товаров для создания заказа');
-                return;
-            }
-            
-            const lines = result.trim().split('\n').filter(l => l);
-            const orderKods = [];
-            
-            // Загружаем состав оптовиков
-            let optKods = new Set();
-            const allKods = [];
-            for (let i = 1; i < lines.length; i++) {
-                const parts = lines[i].split('\t');
-                const kod = parts[0]?.trim();
-                if (kod) allKods.push(kod);
-            }
-            
-            if (allKods.length > 0) {
-                const optKodList = allKods.map(k => `'${k.replace(/'/g, "''")}'`).join(',');
-                const optResult = await this.query(
-                    `SELECT "kod", "opt" FROM "guide" WHERE "kod" IN (${optKodList})`
-                );
-                if (optResult?.trim()) {
-                    const optLines = optResult.trim().split('\n').filter(l => l);
-                    for (let i = 1; i < optLines.length; i++) {
-                        const parts = optLines[i].split('\t');
-                        const k = parts[0]?.trim();
-                        const o = parts[1]?.trim();
-                        if (k && o === 'Сборка') optKods.add(k);
-                    }
-                }
-            }
-            
-            // Создаём заказ (status=3)
-            for (let i = 1; i < lines.length; i++) {
-                const parts = lines[i].split('\t');
-                const kod = parts[0]?.trim();
-                const koli = parseInt(parts[1]?.trim()) || 0;
-                if (!kod || koli <= 0) continue;
-                
-                if (optKods.has(kod)) {
-                    // Оптовик — записываем сам + ТОЛЬКО компоненты с type="Товар"
-                    await this.query(
-                        `INSERT INTO "zakaz" ("kod", "koli", "nomer", "user", "status", "data", "time") ` +
-                        `VALUES ('${kod.replace(/'/g, "''")}', ${koli}, '${newNomer}', '${userId}', 3, '${dataStr}', '${timeStr}')`
-                    );
-
-                    const components = await this.getApprovedComponents(kod);
-                    for (const comp of components) {
-                        const totalKoli = koli * comp.koliPerUnit;
-                        await this.query(
-                            `INSERT INTO "zakaz" ("kod", "koli", "nomer", "user", "status", "data", "time") ` +
-                            `VALUES ('${comp.kod.replace(/'/g, "''")}', ${totalKoli}, '${newNomer}', '${userId}', 3, '${dataStr}', '${timeStr}')`
-                        );
-                    }
-                } else {
-                    // Обычный товар
-                    await this.query(
-                        `INSERT INTO "zakaz" ("kod", "koli", "nomer", "user", "status", "data", "time") ` +
-                        `VALUES ('${kod.replace(/'/g, "''")}', ${koli}, '${newNomer}', '${userId}', 3, '${dataStr}', '${timeStr}')`
-                    );
-                }
-            }
-            
-            // Удаляем источники (только тот статус, который скопировали)
-            await this.query(
-                `DELETE FROM "zakaz" WHERE "nomer"='${nomer.replace(/'/g, "''")}' AND "status"=${sourceStatus}`
-            );
-            
-            alert(`✅ Заказ ${newNomer} создан!`);
-            await this.loadReserve();
-            await this.loadData();
-            this.openOrdersModal(); // Обновить список
-            
-        } catch (e) {
-            console.error('Ошибка создания заказа:', e);
-            alert('❌ Ошибка создания заказа: ' + e.message);
-        }
-    },
-
-    // ============================================================
     // ОЧИСТКА ПЛАНА
     // ============================================================
     async clearPlan() {
         const userId = localStorage.getItem('userId') || '';
-        if (!confirm('Очистить все данные в колонке "План"?')) return;
+        const userName = localStorage.getItem('userName') || userId;
+        if (!confirm('Очистить мои планы?')) return;
 
         try {
-            // Удаляем все записи status=1 и status=2 текущего пользователя
+            // Удаляем все записи status=1 и status=2 текущего пользователя (по ФИО — так же, как при INSERT)
             await this.query(
-                `DELETE FROM "zakaz" WHERE "user"='${userId.replace(/'/g, "''")}' AND "status" IN (1, 2)`
+                `DELETE FROM "zakaz" WHERE "user"='${userName.replace(/'/g, "''")}' AND "status" IN (1, 2)`
             );
             this.clearCurrentNomer(); // Сбрасываем сессию
-            alert('✅ План очищен');
+            alert('✅ Мои планы очищены');
             await this.loadReserve();
             await this.loadData();
         } catch (e) {
-            console.error('Ошибка очистки плана:', e);
-            alert('❌ Ошибка очистки плана: ' + e.message);
+            console.error('Ошибка очистки планов:', e);
+            alert('❌ Ошибка: ' + e.message);
         }
     },
 
     // ============================================================
-    // СОХРАНЕНИЕ КАК ЧЕРНОВИК
+    // ПЕРЕЙТИ НА СТРАНИЦУ ЗАКАЗОВ (с сохранением всех полей "План")
     // ============================================================
-    async saveAsDraft() {
-        const userId = localStorage.getItem('userId') || '';
-        try {
-            // Конвертируем status=1 и status=2 в status=4 (черновик)
-            await this.query(
-                `UPDATE "zakaz" SET "status"=4 WHERE "nomer"='${this.currentSessionNomer.replace(/'/g, "''")}' AND "user"='${userId.replace(/'/g, "''")}' AND "status" IN (1, 2)`
-            );
-            alert('✅ Сохранено как черновик');
-            // Перезагружаем заказ
-            await this.loadOrderItems();
-            await this.loadReserve();
-            await this.loadData();
-        } catch (e) {
-            console.error('Ошибка сохранения как черновик:', e);
-            alert('❌ Ошибка сохранения как черновик: ' + e.message);
+    async acquireLock(kod) {
+        while (this.planSaveMutex[kod]) {
+            console.log(`[lock] Ожидание замка для kod=${kod}`);
+            await new Promise(r => setTimeout(r, 50));
         }
+        this.planSaveMutex[kod] = true;
+    },
+
+    releaseLock(kod) {
+        delete this.planSaveMutex[kod];
+    },
+
+    async saveAllPlanAndGo() {
+        console.log('[plan] >>>>>>>>>> saveAllPlanAndGo');
+
+        // Показываем модалку загрузки
+        const loadingModal = document.getElementById('loadingModal');
+        if (loadingModal) loadingModal.style.display = 'flex';
+
+        // Ждём завершения всех pending blur (фокус может быть на одном из полей ввода)
+        if (this.pendingBlurPromises.length > 0) {
+            console.log(`[plan] Ждём завершения ${this.pendingBlurPromises.length} pending blur...`);
+            await Promise.all(this.pendingBlurPromises);
+            console.log('[plan] Все pending blur завершены');
+            this.pendingBlurPromises = [];
+        }
+
+        // === Принудительно перезагружаем резерв из БД и пересчитываем «Доступно» ===
+        console.log('[plan] Принудительный пересчёт резерва перед созданием заказа...');
+        await this.loadReserve();
+        await this.recalcAllOptAvail();
+        // Пересчитываем доступное для ВСЕХ товаров (не только оптовиков)
+        const dataLines = this.currentData?.dataLines;
+        const headers = this.currentData?.headers;
+        if (dataLines && headers) {
+            for (let i = 1; i < dataLines.length; i++) {
+                const values = dataLines[i].split('\t');
+                const kod = values[headers.indexOf('kod')] || '';
+                if (!kod) continue;
+                const totalWh = this.assembledWarehouse?.[kod] || this.warehouseCache?.[kod] || 0;
+                const reserve = this.reserveData[kod] || 0;
+                this.availableData[kod] = totalWh - reserve;
+            }
+            console.log('[plan] availableData пересчитан:', this.availableData);
+        }
+        // === Конец пересчёта ===
+
+        // === ПРОВЕРКА: товары с отрицательным «Доступно» и заполненным планом ===
+        const planInputs = document.querySelectorAll('input[data-field="plan"]');
+        const negativePlanItems = [];
+
+        for (const input of planInputs) {
+            const kod = input.getAttribute('data-kod');
+            const planQty = parseInt(input.value) || 0;
+
+            if (planQty > 0) {
+                const available = this.availableData[kod] ?? 0;
+                if (available < 0) {
+                    // Получаем артикул и название из строки таблицы
+                    const row = input.closest('tr');
+                    const cells = row?.querySelectorAll('td');
+                    let art = '';
+                    let name = '';
+                    // Ищем колонки по порядку: Kod, Art, Name и т.д.
+                    const headersRow = document.querySelector('.warehouse-table thead tr');
+                    const headerCells = headersRow?.querySelectorAll('th') || [];
+                    const headerCellsVisible = Array.from(headerCells).map(th => th.getAttribute('data-column'));
+
+                    const artIdx = headerCellsVisible.indexOf('art');
+                    const nameIdx = headerCellsVisible.indexOf('name');
+                    if (artIdx >= 0 && cells[artIdx]) art = cells[artIdx].textContent.trim();
+                    if (nameIdx >= 0 && cells[nameIdx]) name = cells[nameIdx].textContent.trim();
+
+                    negativePlanItems.push({
+                        kod,
+                        art: art || kod,
+                        name,
+                        available,
+                        plan: planQty
+                    });
+                }
+            }
+        }
+
+        if (negativePlanItems.length > 0) {
+            const msg = negativePlanItems
+                .map(i => `❌ ${i.art} (${i.name || i.kod}): Доступно = ${i.available}, План = ${i.plan}`)
+                .join('\n');
+
+            alert(
+                `⛔ Нельзя создать заказ!\n\n` +
+                `${negativePlanItems.length} товаров с отрицательным «Доступно» имеют заполненный План:\n\n` +
+                msg +
+                '\n\nУменьшите план для указанных позиций или дождитесь поступления товара на склад.'
+            );
+
+            console.warn('[plan] Создание заказа заблокировано: отрицательный остаток', negativePlanItems);
+            if (loadingModal) loadingModal.style.display = 'none';
+            return;
+        }
+        // === Конец проверки ===
+
+        // Очищаем поля «План» перед переходом на страницу заказов
+        const planClearInputs = document.querySelectorAll('input[data-field="plan"]');
+        planClearInputs.forEach((input) => {
+            input.value = '';
+        });
+
+        // Переходим на страницу заказов
+        window.location.href = 'orders.html';
     },
 
     // ============================================================
@@ -1782,12 +1469,6 @@ const WAREHOUSE = {
         this.isOrdersLoading = true;
 
         const userId = localStorage.getItem('userId') || '';
-
-        const now = new Date();
-        const todayPrefix =
-            String(now.getFullYear()).slice(2) +
-            String(now.getMonth() + 1).padStart(2, '0') +
-            String(now.getDate()).padStart(2, '0');
 
         // Загружаем заказы (status=3)
         const ordersResult = await this.query(
@@ -2429,6 +2110,7 @@ const WAREHOUSE = {
             const dataStr = now.toISOString().split('T')[0];
             const timeStr = now.toTimeString().split(' ')[0].slice(0, 5);
             const userId = localStorage.getItem('userId') || '';
+            const userName = localStorage.getItem('userName') || userId;
 
             for (const row of rows) {
                 const kod = row.getAttribute('data-kod');
@@ -2437,7 +2119,7 @@ const WAREHOUSE = {
 
                 await this.query(
                     `INSERT INTO "zakaz" ("kod", "koli", "nomer", "user", "status", "data", "time") ` +
-                    `VALUES ('${kod.replace(/'/g, "''")}', ${koli}, '${this.currentEditDraftNomer.replace(/'/g, "''")}', '${userId.replace(/'/g, "''")}', ${this.currentEditDraftStatus}, '${dataStr}', '${timeStr}')`
+                    `VALUES ('${kod.replace(/'/g, "''")}', ${koli}, '${this.currentEditDraftNomer.replace(/'/g, "''")}', '${userName.replace(/'/g, "''")}', ${this.currentEditDraftStatus}, '${dataStr}', '${timeStr}')`
                 );
             }
 
@@ -2449,6 +2131,159 @@ const WAREHOUSE = {
         } catch (e) {
             console.error('Ошибка сохранения:', e);
             alert('❌ Ошибка сохранения: ' + e.message);
+        }
+    },
+
+    // ============================================================
+    // СОЗДАНИЕ ЗАКАЗА ИЗ ЧЕРНОВИКА/ПЛАНА (с проверкой остатков)
+    // ============================================================
+    async createOrderFromNommer(nomer, oldStatus) {
+        if (!nomer) return;
+        console.log(`[createOrderFromNommer] nomer=${nomer}, oldStatus=${oldStatus}`);
+
+        // 1. Загружаем все записи текущего документа
+        const result = await this.query(
+            `SELECT "kod", SUM("koli") as "total" FROM "zakaz" WHERE "nomer"='${nomer.replace(/'/g, "''")}' AND "status"=${oldStatus} GROUP BY "kod"`
+        );
+
+        if (!result?.trim()) {
+            alert('❌ В документе нет записей');
+            return;
+        }
+
+        // 2. Собираем товары документа
+        const lines = result.trim().split('\n').filter(l => l);
+        const headers = lines[0].split('\t').map(h => h.trim().toLowerCase());
+        const kodIdx = headers.indexOf('kod');
+        const totalIdx = headers.findIndex(h => h.includes('total') || h === 'sum');
+
+        const items = [];
+        for (let i = 1; i < lines.length; i++) {
+            const parts = lines[i].split('\t');
+            const kod = kodIdx >= 0 ? parts[kodIdx]?.trim() : '';
+            const koli = totalIdx >= 0 ? parseInt(parts[totalIdx]) || 0 : 0;
+            if (kod) items.push({ kod, koli });
+        }
+
+        if (items.length === 0) {
+            alert('❌ В документе нет товаров');
+            return;
+        }
+
+        // 3. Проверка отрицательных остатков
+        const kodList = items.map(i => `'${i.kod.replace(/'/g, "''")}'`).join(',');
+        const kodListQuoted = items.map(i => `'${i.kod.replace(/'/g, "''")}'`).join(',');
+
+        // Загружаем складские остатки из history (SUM quantity * prostuk)
+        const warehouseResult = await this.query(
+            `SELECT "kod", SUM("quantity" * "prostuk") as "total" FROM "history" WHERE "kod" IN (${kodListQuoted}) GROUP BY "kod"`
+        );
+        const warehouseCache = {};
+        if (warehouseResult?.trim()) {
+            const wLines = warehouseResult.trim().split('\n').filter(l => l);
+            const wHeaders = wLines[0].split('\t').map(h => h.trim().toLowerCase());
+            const wKodIdx = wHeaders.indexOf('kod');
+            const wTotalIdx = wHeaders.findIndex(h => h.includes('total') || h === 'sum');
+            for (let i = 1; i < wLines.length; i++) {
+                const parts = wLines[i].split('\t');
+                const k = wKodIdx >= 0 ? parts[wKodIdx]?.trim() : '';
+                const q = wTotalIdx >= 0 ? parseFloat(parts[wTotalIdx]) || 0 : 0;
+                warehouseCache[k] = q;
+            }
+        }
+
+        // Загружаем резерв по этим товарам (ВСЕ статусы)
+        const reserveResult = await this.query(
+            `SELECT "kod", SUM("koli") as "total" FROM "zakaz" WHERE "kod" IN (${kodList}) AND "status" IN (1, 2, 3, 4) GROUP BY "kod"`
+        );
+        const reserveData = {};
+        if (reserveResult?.trim()) {
+            const rLines = reserveResult.trim().split('\n').filter(l => l);
+            const rHeaders = rLines[0].split('\t').map(h => h.trim().toLowerCase());
+            const rKodIdx = rHeaders.indexOf('kod');
+            const rTotalIdx = rHeaders.findIndex(h => h.includes('total') || h === 'sum');
+            for (let i = 1; i < rLines.length; i++) {
+                const parts = rLines[i].split('\t');
+                const k = rKodIdx >= 0 ? parts[rKodIdx]?.trim() : '';
+                const q = rTotalIdx >= 0 ? parseInt(parts[rTotalIdx]) || 0 : 0;
+                reserveData[k] = q;
+            }
+        }
+
+        // Вычисляем доступное
+        const availableData = {};
+        for (const item of items) {
+            const totalWh = warehouseCache[item.kod] || 0;
+            const reserve = reserveData[item.kod] || 0;
+            availableData[item.kod] = totalWh - reserve;
+        }
+
+        // Проверяем отрицательные
+        const negativeItems = [];
+        for (const item of items) {
+            if (availableData[item.kod] < 0) {
+                // Загружаем артикул и название
+                const guideResult = await this.query(
+                    `SELECT "art", "name" FROM "guide" WHERE "kod"='${item.kod.replace(/'/g, "''")}'`
+                );
+                let art = '';
+                let name = '';
+                if (guideResult?.trim()) {
+                    const gLines = guideResult.trim().split('\n').filter(l => l);
+                    const gHeaders = gLines[0].split('\t').map(h => h.trim().toLowerCase());
+                    const artIdx = gHeaders.indexOf('art');
+                    const nameIdx = gHeaders.indexOf('name');
+                    const gParts = gLines[1]?.split('\t') || [];
+                    art = artIdx >= 0 ? gParts[artIdx]?.trim() || '' : '';
+                    name = nameIdx >= 0 ? gParts[nameIdx]?.trim() || '' : '';
+                }
+
+                negativeItems.push({
+                    kod: item.kod,
+                    art: art || item.kod,
+                    name,
+                    available: availableData[item.kod],
+                    plan: item.koli
+                });
+            }
+        }
+
+        if (negativeItems.length > 0) {
+            const msg = negativeItems
+                .map(i => `❌ ${i.art} (${i.name || i.kod}): Доступно = ${i.available}, План = ${i.plan}`)
+                .join('\n');
+
+            alert(
+                `⛔ Нельзя создать заказ!\n\n` +
+                `${negativeItems.length} товаров с отрицательным «Доступно» имеют заполненный План:\n\n` +
+                msg +
+                '\n\nУменьшите план для указанных позиций или дождитесь поступления товара на склад.'
+            );
+
+            console.warn('[createOrderFromNommer] Создание заказа заблокировано: отрицательный остаток', negativeItems);
+            return;
+        }
+
+        // 4. Проверка пройдена — меняем статус на 3 (Заказ)
+        try {
+            await this.query(
+                `UPDATE "zakaz" SET "status"=3 WHERE "nomer"='${nomer.replace(/'/g, "''")}' AND "status"=${oldStatus}`
+            );
+
+            alert('✅ Заказ создан!');
+
+            // Закрываем модальные окна
+            this.closeEditDraftModal();
+
+            // Обновляем резерв и доступность
+            await this.loadReserve();
+            await this.loadData();
+            await this.recalcAllOptAvail();
+            this.updateAllRowsAvailability();
+            this.openOrdersModal(); // Обновить список
+        } catch (e) {
+            console.error('Ошибка создания заказа:', e);
+            alert('❌ Ошибка создания заказа: ' + e.message);
         }
     },
 
@@ -2759,7 +2594,36 @@ const WAREHOUSE = {
             }
             console.log('[Warehouse] sortiMap:', sortiMap);
 
-            // Рендерим таблицу
+            // Рендерим таблицу (с учётом фильтров)
+            const allRows = [];
+            for (let i = 1; i < dataLines.length; i++) {
+                const values = dataLines[i].split('\t');
+                const rowKod = values[headers.indexOf('kod')] || '';
+                allRows.push({ kod: rowKod, values, typeOpt: typeOptMap[rowKod] || {} });
+            }
+
+            // Применяем фильтр по типу
+            const filteredRows = allRows.filter(row => {
+                const rowTypeInfo = row.typeOpt || {};
+                const rowType = rowTypeInfo.type || '';
+                const maps = {
+                    'Товар': 'Tov',
+                    'Внутрицех': 'Vnut',
+                    'Расходник': 'Rash',
+                    'Упаковка': 'Upak',
+                };
+                const filterKey = maps[rowType];
+                if (filterKey && this.typeFilter[filterKey] !== undefined) {
+                    return this.typeFilter[filterKey];
+                }
+                return true;
+            });
+
+            // Сохраняем данные
+            this.currentData = { dataLines, headers, rows: allRows, filteredRows };
+
+            console.log(`[loadData] Всего строк: ${allRows.length}, после фильтрации: ${filteredRows.length}`);
+
             let html = `<table class="warehouse-table"><thead><tr>`;
             visible.forEach(col => {
                 const translated = this.translations[col.db] || col.key;
@@ -2767,9 +2631,8 @@ const WAREHOUSE = {
             });
             html += `</tr></thead><tbody>`;
 
-            for (let i = 1; i < dataLines.length; i++) {
-                const values = dataLines[i].split('\t');
-                const rowKod = values[headers.indexOf('kod')] || '';
+            for (const row of filteredRows) {
+                const { kod: rowKod, values, typeOpt } = row;
                 
                 // Проверяем type/opt: input в колонке "Сделано" только для type='Товар' и opt!='Сборка'
                 const rowTypeInfo = typeOptMap[rowKod] || {};
@@ -3025,6 +2888,12 @@ const WAREHOUSE = {
             }
 
             input.addEventListener('blur', async (e) => {
+                // Отменяем debounce если уже есть pending
+                if (this.planSaveTimeout) {
+                    clearTimeout(this.planSaveTimeout);
+                    this.planSaveTimeout = null;
+                }
+
                 const kod = e.target.getAttribute('data-kod');
                 const field = e.target.getAttribute('data-field');
                 const raw = e.target.value.trim();
@@ -3052,7 +2921,17 @@ const WAREHOUSE = {
 
                     // Если "План" — удаляем из zakaz
                     if (field === 'plan') {
-                        await this.syncPlanToZakaz(kod, 0);
+                        this.isSavingPlan = true;
+                        e.target.disabled = true;
+                        e.target.style.opacity = '0.5';
+                        try {
+                            await this.syncPlanToZakaz(kod, 0);
+                        } finally {
+                            this.isSavingPlan = false;
+                            e.target.disabled = false;
+                            e.target.style.opacity = '1';
+                        }
+                        this.schedulePlanSync();
                     }
 
                     return;
@@ -3072,7 +2951,24 @@ const WAREHOUSE = {
 
                 // Если "План" — записываем в zakaz со статусом 1
                 if (field === 'plan') {
-                    await this.syncPlanToZakaz(kod, value);
+                    this.isSavingPlan = true;
+                    e.target.disabled = true;
+                    e.target.style.opacity = '0.5';
+                    try {
+                        // Сохраняем Promise в массив для ожидания в saveAllPlanAndGo
+                        const promise = this.syncPlanToZakaz(kod, value);
+                        this.pendingBlurPromises.push(promise);
+                        await promise;
+                        console.log(`[plan] Сохранён план: kod=${kod}, koli=${value}`);
+                    } catch (e) {
+                        console.error('[plan] Ошибка сохранения:', e);
+                    } finally {
+                        this.isSavingPlan = false;
+                        e.target.disabled = false;
+                        e.target.style.opacity = '1';
+                    }
+                    // Запускаем debounce для loadReserve + recalc (сброс предыдущего таймера)
+                    this.schedulePlanSync();
                     return;
                 }
             });
@@ -3083,6 +2979,15 @@ const WAREHOUSE = {
                 if (controlKeys.includes(e.key) || e.ctrlKey || e.altKey || e.metaKey) return;
                 if (!/^[0-9]$/.test(e.key)) {
                     e.preventDefault();
+                }
+            });
+
+            // Предотвращаем потерю фокуса — при потере фокуса сразу сохраняем
+            input.addEventListener('focus', (e) => {
+                // Сохраняем текущее значение перед редактированием
+                if (this.planSaveTimeout) {
+                    clearTimeout(this.planSaveTimeout);
+                    this.planSaveTimeout = null;
                 }
             });
         });
@@ -3163,41 +3068,53 @@ const WAREHOUSE = {
 
         console.log(`[recalcOptAvailForKod] Пересчёт оптовиков:`, optKods);
 
-        // Для каждого оптовика загружаем состав и пересчитываем
+        // BATCH: загружаем СОСТАВ ВСЕХ оптовиков ОДНИМ запросом
+        const optKodList = optKods.map(k => `'${k.replace(/'/g, "''")}'`).join(',');
+        const sastavBatch = await this.query(
+            `SELECT "kod", "kod2", "koli" FROM "sostav" WHERE "kod" IN (${optKodList})`
+        );
+
+        // Группируем компоненты по optKod
+        const compsByOpt = {};
         for (const optKod of optKods) {
-            const sastavResult2 = await this.query(
-                `SELECT "kod2", "koli" FROM "sostav" WHERE "kod"='${optKod.replace(/'/g, "''")}'`
-            );
+            compsByOpt[optKod] = [];
+        }
 
-            console.log(`[recalcOptAvailForKod] Состав оптовика ${optKod}:`, sastavResult2);
-
-            if (!sastavResult2?.trim()) {
-                this.availableData[optKod] = 0;
-                this.updateOptAvailInDOM(optKod, 0);
-                continue;
+        if (sastavBatch?.trim()) {
+            const sastavLines = sastavBatch.trim().split('\n').filter(l => l);
+            if (sastavLines.length > 1) {
+                const sh = sastavLines[0].split('\t').map(h => h.trim().toLowerCase());
+                const kodIdx = sh.indexOf('kod');
+                const kod2Idx = sh.indexOf('kod2');
+                const koliIdx = sh.indexOf('koli');
+                for (let i = 1; i < sastavLines.length; i++) {
+                    const parts = sastavLines[i].split('\t');
+                    const k = kodIdx >= 0 ? parts[kodIdx]?.trim() : '';
+                    const k2 = kod2Idx >= 0 ? parts[kod2Idx]?.trim() : '';
+                    const koli = koliIdx >= 0 ? parseInt(parts[koliIdx]) || 1 : 1;
+                    if (k && k2 && compsByOpt[k]) {
+                        compsByOpt[k].push({ kod2: k2, koli });
+                    }
+                }
             }
+        }
 
-            const sastavLines = sastavResult2.trim().split('\n').filter(l => l);
-            const sastavHeaders = sastavLines[0].split('\t').map(h => h.trim().toLowerCase());
-            const kod2Idx = sastavHeaders.indexOf('kod2');
-            const koliIdx = sastavHeaders.indexOf('koli');
+        // Пересчитываем каждый оптовик (только DOM, без запросов)
+        for (const optKod of optKods) {
+            const components = compsByOpt[optKod] || [];
 
             let minAvail = Infinity;
             let hasComp = false;
 
-            for (let i = 1; i < sastavLines.length; i++) {
-                const parts = sastavLines[i].split('\t');
-                const compKod2 = kod2Idx >= 0 ? parts[kod2Idx]?.trim() : '';
-                const koli = koliIdx >= 0 ? parseInt(parts[koliIdx]) || 1 : 1;
-
-                if (!compKod2) continue;
+            for (const comp of components) {
+                if (!comp.kod2) continue;
 
                 hasComp = true;
-                const compTotal = this.warehouseCache?.[compKod2] || 0;
-                const compReserve = this.reserveData[compKod2] || 0;
+                const compTotal = this.warehouseCache?.[comp.kod2] || 0;
+                const compReserve = this.reserveData[comp.kod2] || 0;
                 const compAvailable = compTotal - compReserve;
-                const optAvail = compAvailable / koli;
-                console.log(`[recalcOptAvailForKod]   Компонент ${compKod2}: total=${compTotal}, reserve=${compReserve}, avail=${compAvailable}, koli=${koli}, optAvail=${optAvail}`);
+                const optAvail = compAvailable / comp.koli;
+                console.log(`[recalcOptAvailForKod]   Компонент ${comp.kod2}: total=${compTotal}, reserve=${compReserve}, avail=${compAvailable}, koli=${comp.koli}, optAvail=${optAvail}`);
 
                 if (optAvail < minAvail) minAvail = optAvail;
             }
@@ -3326,6 +3243,20 @@ const WAREHOUSE = {
         }
 
         console.log(`Обновлена строка ${kod}: Доступно=${available}, Резерв=${reserve}, Всего=${totalWh}`);
+    },
+
+    // ============================================================
+    // ОБНОВЛЕНИЕ ВСЕХ ВИДИМЫХ СТРОК (после массовой загрузки / loadReserve)
+    // ============================================================
+    updateAllRowsAvailability() {
+        const rows = this.domCache.tableRows;
+        if (!rows) return;
+
+        const kods = Object.keys(rows);
+        for (const kod of kods) {
+            this.updateRowAvailability(kod, this.reserveData[kod] || 0);
+        }
+        console.log(`[updateAllRowsAvailability] Обновлено ${kods.length} строк`);
     },
 
     // ============================================================
@@ -3780,15 +3711,16 @@ const WAREHOUSE = {
     // ============================================================
     getDb() {
         return new Promise((resolve, reject) => {
-            const request = indexedDB.open('ImageDB', 3);
+            const request = indexedDB.open('ImageDB', 4);
             request.onupgradeneeded = (e) => {
                 const db = e.target.result;
-                if (!db.objectStoreNames.contains('images')) {
-                    db.createObjectStore('images', { keyPath: 'kod' });
+                // Удаляем старые object stores если есть конфликт
+                for (const name of db.objectStoreNames) {
+                    db.deleteObjectStore(name);
                 }
-                if (!db.objectStoreNames.contains('warehouse_cache')) {
-                    db.createObjectStore('warehouse_cache', { keyPath: 'kod' });
-                }
+                // Создаём нужные stores
+                db.createObjectStore('images', { keyPath: 'kod' });
+                db.createObjectStore('warehouse_cache', { keyPath: 'kod' });
             };
             request.onsuccess = () => resolve(request.result);
             request.onerror = () => reject(request.error);
@@ -4695,13 +4627,14 @@ const WAREHOUSE = {
                 totalQty += item.kolich;
             }
 
-            for (const item of this.foundItems) {
-                // item.kod = prihod.kodnas (наш код товара)
-                await this.query(
-                    `INSERT INTO "history" ("kod", "data", "time", "quantity", "prostuk", "user", "ID_user") ` +
-                    `VALUES ('${item.kod.replace(/'/g, "''")}', '${dataStr}', '${timeStr}', '1', '${item.kolich}', '${userName.replace(/'/g, "''")}', '${userId.replace(/'/g, "''")}')`
-                );
-            }
+            // BATCH INSERT — один запрос вместо N
+            const values = this.foundItems.map(item =>
+                `('${item.kod.replace(/'/g, "''")}', '${dataStr}', '${timeStr}', '1', '${item.kolich}', '${userName.replace(/'/g, "''")}', '${userId.replace(/'/g, "''")}')`
+            ).join(', ');
+
+            await this.query(
+                `INSERT INTO "history" ("kod", "data", "time", "quantity", "prostuk", "user", "ID_user") VALUES ${values}`
+            );
 
             console.log(`✅ Записано в history: ${this.foundItems.length} товаров, всего ${totalQty} шт`);
             this.closeAcceptStockModal();
@@ -5462,10 +5395,41 @@ const WAREHOUSE = {
     openMassUploadModal() {
         document.getElementById('massUploadModal').style.display = 'flex';
         this.massUploadReset();
+
+        // Восстанавливаем состояние чекбоксов из localStorage при открытии
+        const chkByName = document.getElementById('massChkCheckByName');
+        const chkByFileDate = document.getElementById('massChkCheckByFileDate');
+        if (chkByName) {
+            const saved = localStorage.getItem('mass_upload_checkByName');
+            chkByName.checked = saved === null ? true : (saved === 'true');
+            this.massUploadData.duplicateCheck.checkByName = chkByName.checked;
+        }
+        if (chkByFileDate) {
+            const saved = localStorage.getItem('mass_upload_checkByFileDate');
+            chkByFileDate.checked = saved === null ? true : (saved === 'true');
+            this.massUploadData.duplicateCheck.checkByFileDate = chkByFileDate.checked;
+        }
+
         this.massUploadBindEvents();
     },
 
     massUploadBindEvents() {
+        // Вешаем обработчики на чекбоксы дубликатов (чтобы работало при любом открытии модалки)
+        const chkByName = document.getElementById('massChkCheckByName');
+        const chkByFileDate = document.getElementById('massChkCheckByFileDate');
+        if (chkByName) {
+            chkByName.onchange = () => {
+                this.massUploadData.duplicateCheck.checkByName = chkByName.checked;
+                localStorage.setItem('mass_upload_checkByName', chkByName.checked.toString());
+            };
+        }
+        if (chkByFileDate) {
+            chkByFileDate.onchange = () => {
+                this.massUploadData.duplicateCheck.checkByFileDate = chkByFileDate.checked;
+                localStorage.setItem('mass_upload_checkByFileDate', chkByFileDate.checked.toString());
+            };
+        }
+
         // Файл change
         const massFileInput = document.getElementById('massFileInput');
         if (massFileInput) {
@@ -5477,36 +5441,24 @@ const WAREHOUSE = {
             };
         }
 
-        // Label click
-        const massFileLabel = document.querySelector('#massUploadModal label[for="massFileInput"]');
-        if (massFileLabel) {
-            massFileLabel.onclick = (e) => {
-                e.preventDefault();
+        // DropZone click — открывает выбор файла при клике на весь контейнер
+        const dropZone = document.getElementById('dropZone');
+        if (dropZone) {
+            dropZone.onclick = () => {
                 document.getElementById('massFileInput').click();
             };
-        }
 
-        // Remove file
-        const massRemoveFile = document.getElementById('massRemoveFile');
-        if (massRemoveFile) {
-            massRemoveFile.onclick = () => {
-                this.massUploadReset();
-            };
-        }
-
-        // Drag & Drop
-        const massDropZone = document.getElementById('dropZone');
-        if (massDropZone) {
-            massDropZone.ondragover = (e) => {
+            // Drag & Drop
+            dropZone.ondragover = (e) => {
                 e.preventDefault();
-                massDropZone.classList.add('dragover');
+                dropZone.classList.add('dragover');
             };
-            massDropZone.ondragleave = () => {
-                massDropZone.classList.remove('dragover');
+            dropZone.ondragleave = () => {
+                dropZone.classList.remove('dragover');
             };
-            massDropZone.ondrop = (e) => {
+            dropZone.ondrop = (e) => {
                 e.preventDefault();
-                massDropZone.classList.remove('dragover');
+                dropZone.classList.remove('dragover');
                 if (e.dataTransfer.files.length > 0) this.massUploadHandleFile(e.dataTransfer.files[0]);
             };
         }
@@ -5519,11 +5471,29 @@ const WAREHOUSE = {
             };
         }
 
+        // Remove file
+        const massRemoveFile = document.getElementById('massRemoveFile');
+        if (massRemoveFile) {
+            massRemoveFile.onclick = () => {
+                this.massUploadReset();
+            };
+        }
+
+        // Auto-transition checkbox
+        const autoTransitionCheck = document.getElementById('autoTransitionCheck');
+        if (autoTransitionCheck) {
+            const saved = localStorage.getItem('mass_upload_autoTransition');
+            autoTransitionCheck.checked = saved === null ? true : (saved === 'true');
+            autoTransitionCheck.onchange = () => {
+                localStorage.setItem('mass_upload_autoTransition', autoTransitionCheck.checked.toString());
+            };
+        }
+
         // Analyze
         const massAnalyzeBtn = document.getElementById('massAnalyzeBtn');
         if (massAnalyzeBtn) {
             massAnalyzeBtn.onclick = () => {
-                this.massUploadAnalyze();
+                this.massUploadRunAnalysis();
             };
         }
 
@@ -5660,6 +5630,9 @@ const WAREHOUSE = {
     },
 
     closeMassUploadModal() {
+        // Убираем overlay если был
+        const overlay = document.getElementById('massSuccessOverlay');
+        if (overlay) overlay.remove();
         document.getElementById('massUploadModal').style.display = 'none';
         this.massUploadReset();
     },
@@ -5712,15 +5685,22 @@ const WAREHOUSE = {
             if (removeBtn) removeBtn.style.display = 'inline-flex';
         }
 
-        // Загружаем настройки чекбоксов (они всегда видны)
+        // Загружаем настройки чекбоксов
         this.massUploadLoadDuplicateSettings();
 
-        // Проверяем дубликат
-        await this.massUploadCheckDuplicate();
+        // Показываем Шаг 1
+        document.getElementById('massStep1').style.display = 'block';
+        document.getElementById('massStep2').style.display = 'none';
+        document.getElementById('massStep3').style.display = 'none';
+        // Настройки дубликатов видны только на Шаге 1
+        if (document.getElementById('massDuplicateSettings')) {
+            document.getElementById('massDuplicateSettings').style.display = 'block';
+        }
 
         const ext = '.' + file.name.split('.').pop().toLowerCase();
 
         if (ext === '.xlsx' || ext === '.xls') {
+            // Excel файл
             const reader = new FileReader();
             reader.onload = (e) => {
                 const data = new Uint8Array(e.target.result);
@@ -5729,6 +5709,7 @@ const WAREHOUSE = {
             };
             reader.readAsArrayBuffer(file);
         } else {
+            // CSV файл
             const reader = new FileReader();
             reader.onload = (e) => {
                 this.massUploadParseCSV(e.target.result);
@@ -5758,7 +5739,39 @@ const WAREHOUSE = {
             return;
         }
 
+        console.log('[massUpload] CSV загружен. Заголовки:', this.massUploadData.csvHeaders);
+        console.log('[massUpload] Всего строк:', this.massUploadData.csvRows.length);
+
         this.massUploadPopulateSelectors();
+
+        // Показываем Шаг 1 по умолчанию — автоопределение решит что дальше
+        document.getElementById('massStep1').style.display = 'block';
+        document.getElementById('massStep2').style.display = 'none';
+        document.getElementById('massStep3').style.display = 'none';
+
+        console.log('[massUpload] Запускаем autoMatchStore...');
+        console.log('[massUpload] type of massUploadAutoMatchStore:', typeof this.massUploadAutoMatchStore);
+        this.massUploadAutoMatchStore()
+            .then(() => {
+                // Если автоопределение не переключило на Шаг 3 — покажем Шаг 2
+                if (document.getElementById('massStep3').style.display !== 'block') {
+                    console.log('[massUpload] AutoMatchStore завершён, Шаг 3 не показан → показываем Шаг 2');
+                    document.getElementById('massStep1').style.display = 'block';
+                    document.getElementById('massStep2').style.display = 'block';
+                    // Настройки дубликатов видны когда Шаг 1 видим
+                    if (document.getElementById('massDuplicateSettings')) {
+                        document.getElementById('massDuplicateSettings').style.display = 'block';
+                    }
+                }
+            })
+            .catch(err => {
+                console.error('[massUpload] Ошибка massUploadAutoMatchStore:', err);
+                document.getElementById('massStep1').style.display = 'block';
+                document.getElementById('massStep2').style.display = 'block';
+                if (document.getElementById('massDuplicateSettings')) {
+                    document.getElementById('massDuplicateSettings').style.display = 'block';
+                }
+            });
     },
 
     massUploadParseCSVLine(line) {
@@ -5789,34 +5802,16 @@ const WAREHOUSE = {
     // МАССОВАЯ ЗАГРУЗКА: ПРОВЕРКА ДУБЛИКАТОВ
     // ============================================================
     massUploadLoadDuplicateSettings() {
+        // Просто читаем текущее состояние чекбоксов (обработчики вешаются в massUploadBindEvents)
         const chkByName = document.getElementById('massChkCheckByName');
         const chkByFileDate = document.getElementById('massChkCheckByFileDate');
 
         if (chkByName) {
-            const saved = localStorage.getItem('mass_upload_checkByName');
-            chkByName.checked = saved === null ? true : (saved === 'true');
             this.massUploadData.duplicateCheck.checkByName = chkByName.checked;
         }
 
         if (chkByFileDate) {
-            const saved = localStorage.getItem('mass_upload_checkByFileDate');
-            chkByFileDate.checked = saved === null ? true : (saved === 'true');
             this.massUploadData.duplicateCheck.checkByFileDate = chkByFileDate.checked;
-        }
-
-        // Вешаем обработчики
-        if (chkByName) {
-            chkByName.onchange = () => {
-                this.massUploadData.duplicateCheck.checkByName = chkByName.checked;
-                localStorage.setItem('mass_upload_checkByName', chkByName.checked.toString());
-            };
-        }
-
-        if (chkByFileDate) {
-            chkByFileDate.onchange = () => {
-                this.massUploadData.duplicateCheck.checkByFileDate = chkByFileDate.checked;
-                localStorage.setItem('mass_upload_checkByFileDate', chkByFileDate.checked.toString());
-            };
         }
     },
 
@@ -5847,90 +5842,142 @@ const WAREHOUSE = {
             return;
         }
 
+        const result = await this.massUploadCheckDuplicateSilent();
+        if (!result.allowed) {
+            dc.duplicateFound = true;
+            dc.duplicateReason = result.reason;
+            this.massUploadShowDuplicateWarning(titleEl, textEl);
+        } else {
+            dc.allowedByUser = true;
+            warningEl.style.display = 'none';
+            this.massUploadUpdateConfirmButton();
+        }
+    },
+
+    async massUploadCheckDuplicateSilent() {
+        const dc = this.massUploadData.duplicateCheck;
         const today = new Date();
-        const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
+        const todayStr = today.toISOString().split('T')[0];
+        const fileName = String(this.massUploadData.currentFile?.name || '');
+        const file = this.massUploadData.currentFile;
 
-        try {
-            // 1. Проверка по имени файла за сегодня
-            if (dc.checkByName) {
-                const sqlName = `SELECT "id", "upload_date", "record_count" FROM "mass_upload" WHERE "filename"='${this.massUploadData.currentFile.name.replace(/'/g, "''")}' AND "upload_date"='${todayStr}' AND "type"='upload' LIMIT 1`;
-                console.log('🔍 SQL проверка по имени:', sqlName);
-                const resultName = await this.query(sqlName);
-                console.log('📥 Результат проверки по имени (raw):', JSON.stringify(resultName));
-                const linesName = resultName.trim().split('\n').filter(l => l);
-                console.log('📊 Строки результата (по имени):', linesName.length, linesName);
-
-                if (linesName.length > 1) {
-                    const cols = linesName[1].split('\t');
-                    const recordCount = cols[2] || '?';
-                    dc.duplicateFound = true;
-                    dc.duplicateReason = `⚠️ Обнаружен дубликат! Файл "${this.massUploadData.currentFile.name}" уже загружен сегодня.\n\nЗапись: ${todayStr}, записей: ${recordCount}`;
-                    this.massUploadShowDuplicateWarning(titleEl, textEl);
-                    console.log('✅ Дубликат по имени найден!');
-                    return;
-                }
-                console.log('ℹ️ Дубликат по имени не найден');
-            }
-
-            // 2. Проверка по дате создания файла (lastModifiedDate)
-            if (dc.checkByFileDate) {
-                let fileModifiedDate = null;
-                const file = this.massUploadData.currentFile;
-
-                // Пытаемся получить дату создания/модификации из File API
-                if (file?.lastModifiedDate) {
-                    fileModifiedDate = file.lastModifiedDate;
-                }
-
-                console.log('📅 lastModifiedDate:', fileModifiedDate);
-
-                if (fileModifiedDate) {
-                    const fileDateStr = fileModifiedDate.toISOString().split('T')[0];
-                    const todayStr = today.toISOString().split('T')[0];
-
-                    // Если дата файла НЕ совпадает с сегодня — это старый документ
-                    if (fileDateStr !== todayStr) {
-                        dc.duplicateFound = true;
-                        dc.duplicateReason = `⚠️ Старый документ! Дата создания файла: ${fileDateStr}!`;
-                        this.massUploadShowDuplicateWarning(titleEl, textEl);
-                        console.log('⚠️ Старый документ (дата файла не совпадает с сегодняшней)');
-                        return;
-                    }
-                    console.log('ℹ️ Файл сегодняшний — проверка пройдена');
-                } else {
-                    // Если File API не поддерживает дату создания — предупреждаем что проверка невозможна
-                    console.log('ℹ️ File API не поддерживает дату создания файла, проверка по дате отключена');
-                    dc.checkByFileDate = false;
-                    localStorage.setItem('mass_upload_checkByFileDate', 'false');
-                    const chk = document.getElementById('massChkCheckByFileDate');
-                    if (chk) {
-                        chk.checked = false;
-                        dc.checkByFileDate = false;
-                    }
-                }
-            }
-        } catch (error) {
-            console.error('❌ Ошибка проверки дубликатов:', error);
+        // Если оба выключены — никаких проверок нет
+        if (!dc.checkByName && !dc.checkByFileDate) {
+            console.log('✅ Оба чекбокса выключены — без проверок');
+            return { allowed: true, duplicateType: null };
         }
 
-        // Дубликат не найден — скрываем warning и разблокируем кнопку
-        console.log('✅ Дубликат не обнаружен — разрешаем');
-        dc.allowedByUser = true;
-        warningEl.style.display = 'none';
-        this.massUploadUpdateConfirmButton();
+        // 1. Проверка по имени файла за сегодня
+        let nameDuplicate = false;
+        if (dc.checkByName && fileName) {
+            const safeFileName = fileName.replace(/'/g, "''");
+            const sqlName = `SELECT "upload_date", "record_count" FROM "mass_upload" WHERE "filename"='${safeFileName}' AND "upload_date"='${todayStr}' AND "type"='upload' LIMIT 1`;
+            console.log('🔍 Проверка по имени (сегодня):', sqlName);
+            const resultName = await this.query(sqlName);
+            const linesName = resultName.trim().split('\n').filter(l => l);
+
+            if (linesName.length > 1) {
+                const cols = linesName[1].split('\t');
+                const recordCount = cols[1] || '?';
+                nameDuplicate = true;
+                console.log('⛔ Дубликат по имени найден:', recordCount, 'записей сегодня');
+            } else {
+                console.log('ℹ️ Дубликат по имени не найден');
+            }
+        }
+
+        // 2. Проверка по дате создания (старый документ)
+        let dateDuplicate = false;
+        if (dc.checkByFileDate && file?.lastModifiedDate) {
+            const fileDateStr = file.lastModifiedDate.toISOString().split('T')[0];
+
+            // Если дата файла != сегодня — это старый документ
+            if (fileDateStr !== todayStr) {
+                dateDuplicate = true;
+                console.log('⛔ Старый документ. Дата файла:', fileDateStr);
+            } else {
+                console.log('ℹ️ Файл сегодняшний');
+            }
+        } else if (dc.checkByFileDate) {
+            console.log('ℹ️ File API не поддерживает lastModifiedDate — пропускаем');
+        }
+
+        // Определяем есть ли дубликат
+        if (nameDuplicate || dateDuplicate) {
+            let reason = '';
+            if (nameDuplicate && dateDuplicate) {
+                reason = '⚠️ Файл с таким именем уже загружен сегодня И дата файла не сегодняшняя!';
+            } else if (nameDuplicate) {
+                reason = '⚠️ Файл с таким именем уже загружен сегодня!';
+            } else if (dateDuplicate) {
+                reason = '⚠️ Дата создания файла не сегодняшняя — старый документ!';
+            }
+
+            console.log('⚠️ Дубликат обнаружен:', reason);
+            return {
+                allowed: true, // Разрешаем, но помечаем
+                duplicateType: nameDuplicate ? 'name' : 'date',
+                reason
+            };
+        }
+
+        console.log('✅ Дубликат не обнаружен');
+        return { allowed: true, duplicateType: null };
     },
 
     massUploadShowDuplicateWarning(titleEl, textEl) {
+        const dc = this.massUploadData.duplicateCheck;
+        const reason = dc.duplicateReason || '';
+
+        // Определяем тип дубликата для заголовка
+        if (reason.includes('уже загружен сегодня')) {
+            titleEl.textContent = '⚠️ Дубликат по имени';
+        } else if (reason.includes('уже загружен ранее')) {
+            titleEl.textContent = '⚠️ Дубликат по дате';
+        } else {
+            titleEl.textContent = '⚠️ Обнаружен дубликат';
+        }
+        titleEl.style.color = '#f59e0b';
+
+        textEl.textContent = dc.duplicateReason;
+        textEl.style.whiteSpace = 'pre-line';
+
         const warningEl = document.getElementById('massDuplicateWarning');
-        titleEl.textContent = 'Старый документ';
-        textEl.textContent = this.massUploadData.duplicateCheck.duplicateReason;
         warningEl.style.display = 'flex';
     },
 
     massUploadAllowDuplicate() {
         const dc = this.massUploadData.duplicateCheck;
         dc.allowedByUser = true;
-        document.getElementById('massDuplicateWarning').style.display = 'none';
+
+        const warningEl = document.getElementById('massDuplicateWarning');
+        if (warningEl) {
+            const titleEl = document.getElementById('massDuplicateWarningTitle');
+            const textEl = document.getElementById('massDuplicateWarningText');
+            const confirmBtn = document.getElementById('massDuplicateConfirmBtn');
+
+            if (titleEl) {
+                titleEl.textContent = '✓ Дубликат подтверждён';
+                titleEl.style.color = '#22c55e';
+            }
+            if (textEl) textEl.textContent = 'Загрузка будет выполнена несмотря на дубликат.';
+            if (confirmBtn) {
+                confirmBtn.textContent = '✓ Загружаю';
+                confirmBtn.disabled = true;
+                confirmBtn.style.opacity = '0.5';
+                confirmBtn.style.cursor = 'default';
+            }
+        }
+
+        // Явно разблокируем кнопку "Подтвердить загрузку"
+        const uploadBtn = document.getElementById('massConfirmUpload');
+        if (uploadBtn) {
+            uploadBtn.disabled = false;
+            uploadBtn.style.opacity = '1';
+        }
+
+        console.log('✅ massUploadAllowDuplicate вызван — разблокируем кнопку загрузки');
+        console.log('🔘 allowedByUser:', dc.allowedByUser);
         this.massUploadUpdateConfirmButton();
     },
 
@@ -5976,7 +6023,36 @@ const WAREHOUSE = {
             return;
         }
 
+        console.log('[massUpload] Excel загружен. Заголовки:', this.massUploadData.csvHeaders);
+        console.log('[massUpload] Всего строк:', this.massUploadData.csvRows.length);
+
         this.massUploadPopulateSelectors();
+
+        // Показываем Шаг 1 по умолчанию — автоопределение решит что дальше
+        document.getElementById('massStep1').style.display = 'block';
+        document.getElementById('massStep2').style.display = 'none';
+        document.getElementById('massStep3').style.display = 'none';
+
+        console.log('[massUpload] Селекторы заполнены. Запускаем автоопределение...');
+        this.massUploadAutoMatchStore()
+            .then(() => {
+                if (document.getElementById('massStep3').style.display !== 'block') {
+                    console.log('[massUpload] Excel autoMatchStore завершён, Шаг 3 не показан → показываем Шаг 2');
+                    document.getElementById('massStep1').style.display = 'block';
+                    document.getElementById('massStep2').style.display = 'block';
+                    if (document.getElementById('massDuplicateSettings')) {
+                        document.getElementById('massDuplicateSettings').style.display = 'block';
+                    }
+                }
+            })
+            .catch(err => {
+                console.error('[massUpload] Ошибка autoMatchStore:', err);
+                document.getElementById('massStep1').style.display = 'block';
+                document.getElementById('massStep2').style.display = 'block';
+                if (document.getElementById('massDuplicateSettings')) {
+                    document.getElementById('massDuplicateSettings').style.display = 'block';
+                }
+            });
     },
 
     massUploadPopulateSelectors() {
@@ -5991,26 +6067,29 @@ const WAREHOUSE = {
             qtySelect.innerHTML += `<option value="${index}">${this.escapeHtml(header)}</option>`;
         });
 
-        // Переключаем на этап 2
-        document.getElementById('massStep1').style.display = 'none';
-        document.getElementById('massStep2').style.display = 'block';
-
-        // Скрываем чекбоксы при переходе на шаг 2
-        const dupSettings = document.getElementById('massDuplicateSettings');
-        if (dupSettings) dupSettings.style.display = 'none';
-
-        // Автоопределяем магазин
-        this.massUploadAutoMatchStore();
+        // Не переключаем шаги — автоопределение решит что показывать
     },
 
     // ============================================================
     // АВТО-ОПРЕДЕЛЕНИЕ МАГАЗИНА ПО СОВПАДЕНИЮ КОЛОНОК
     // ============================================================
     async massUploadAutoMatchStore() {
+        console.log('[massUploadAutoMatchStore] >>>>>>>>>> ЗАПУСК');
         try {
+            console.log('[massUploadAutoMatchStore] Запрашиваем магазины из БД...');
             const result = await this.query(`SELECT "id", "store_name", "kod_col", "name_col", "qty_col" FROM "mass_upload" WHERE "type"='config' ORDER BY "store_name"`);
+            console.log('[massUploadAutoMatchStore] Получен результат из БД:', result);
+            
             const lines = result.trim().split('\n').filter(l => l);
-            if (lines.length <= 1) return;
+            console.log('[massUploadAutoMatchStore] Строк в результате:', lines.length);
+            
+            if (lines.length <= 1) {
+                console.log('[massUploadAutoMatchStore] Нет конфигурации магазинов — показываем Шаг 1 и Шаг 2');
+                // Нет конфигурации магазинов — показываем Шаг 1 и Шаг 2 для ручной настройки
+                document.getElementById('massStep1').style.display = 'block';
+                document.getElementById('massStep2').style.display = 'block';
+                return;
+            }
 
             let bestMatch = null;
             let bestScore = 0;
@@ -6036,37 +6115,147 @@ const WAREHOUSE = {
                 }
             }
 
+            const autoTransition = document.getElementById('autoTransitionCheck')?.checked;
+
             if (bestMatch && bestScore > 0) {
+                // Магазин определен — автозаполняем колонки
                 document.getElementById('massStoreInfo').style.display = 'block';
                 document.querySelector('#massStoreInfo .store-name').textContent = bestMatch.name;
 
                 if (bestMatch.kod_col) this.massUploadAutoSelectColumn('massKodColumnSelect', bestMatch.kod_col);
                 if (bestMatch.qty_col) this.massUploadAutoSelectColumn('massQtyColumnSelect', bestMatch.qty_col);
+
+                if (autoTransition) {
+                    // Магазин найден — пропускаем Шаг 2, сразу запускаем анализ
+                    console.log('[massUpload] Магазин найден, автопереход → Шаг 3 (анализ)');
+                    await this.massUploadRunAnalysis();
+                    return;
+                } else {
+                    // Автопереход выключен — показываем Шаг 2 для ручной проверки
+                    console.log('[massUpload] Магазин найден, автопереход выключен → Шаг 2');
+                    document.getElementById('massStep1').style.display = 'none';
+                    document.getElementById('massStep2').style.display = 'block';
+                    return;
+                }
+            } else {
+                // Магазин НЕ определен — показываем Шаг 2 для ручной настройки
+                console.log('[massUpload] Магазин не найден → Шаг 2');
+                if (autoTransition) {
+                    alert('⚠️ Магазин не определен автоматически. Для продолжения настройте колонки вручную.');
+                }
+            }
+
+            // Показываем Шаг 1 и Шаг 2 для ручной настройки
+            document.getElementById('massStep1').style.display = 'block';
+            document.getElementById('massStep2').style.display = 'block';
+            if (document.getElementById('massDuplicateSettings')) {
+                document.getElementById('massDuplicateSettings').style.display = 'block';
             }
         } catch (error) {
             console.error('Ошибка автоопределения магазина:', error);
+            // Показываем Шаг 1 и Шаг 2 при ошибке
+            document.getElementById('massStep1').style.display = 'block';
+            document.getElementById('massStep2').style.display = 'block';
+            if (document.getElementById('massDuplicateSettings')) {
+                document.getElementById('massDuplicateSettings').style.display = 'block';
+            }
         }
     },
 
-    async massUploadAnalyze() {
+    // ============================================================
+    // ЗАПУСК АНАЛИЗА (общая функция для шага 2 и автоматического перехода)
+    // ============================================================
+    async massUploadRunAnalysis() {
+        console.log('[massUploadRunAnalysis] >>>>>>>>>> ЗАПУСК АНАЛИЗА');
+
+        // Скрываем шаг 2, показываем шаг 3
+        console.log('[massUploadRunAnalysis] Скрываем шаг 2, показываем шаг 3');
+        document.getElementById('massStep1').style.display = 'none';
+        document.getElementById('massStep2').style.display = 'none';
+        document.getElementById('massStep3').style.display = 'block';
+        // Настройки дубликатов видны только на Шаге 1
+        if (document.getElementById('massDuplicateSettings')) {
+            document.getElementById('massDuplicateSettings').style.display = 'none';
+        }
+        document.getElementById('massBlockWarning').style.display = 'none';
+        document.getElementById('massConflictWarning').style.display = 'none';
+        document.getElementById('massPreviewBody').innerHTML = '<tr><td colspan="6" class="loading-state">Анализ...</td></tr>';
+
+        console.log('[massUploadRunAnalysis] massStep3 style.display:', document.getElementById('massStep3').style.display);
+
+        // Запускаем анализ и проверку дубликата параллельно
+        const analysisPromise = this.massUploadPerformAnalysis();
+        const duplicatePromise = this.massUploadCheckDuplicateSilent();
+
+        try {
+            const [analyzed, duplicateResult] = await Promise.all([analysisPromise, duplicatePromise]);
+
+            // Устанавливаем результаты анализа
+            this.massUploadData.analyzedData = analyzed.analyzedData;
+            this.massUploadData.conflicts = analyzed.conflicts;
+
+            // Обновляем UI
+            this.massUploadRenderPreview();
+            document.getElementById('massTotalRows').textContent = analyzed.totalRows;
+            document.getElementById('massFoundRows').textContent = analyzed.foundCount;
+            document.getElementById('massNotFoundRows').textContent = analyzed.notFoundCount;
+
+            if (this.massUploadData.conflicts.length > 0) {
+                document.getElementById('massConflictWarning').style.display = 'flex';
+            } else {
+                document.getElementById('massConflictWarning').style.display = 'none';
+            }
+
+                // Проверяем дубликат
+                const dc = this.massUploadData.duplicateCheck;
+                if (duplicateResult.duplicateType) {
+                    dc.duplicateFound = true;
+                    dc.duplicateReason = duplicateResult.reason;
+                    this.massUploadShowDuplicateWarning(
+                        document.getElementById('massDuplicateWarningTitle'),
+                        document.getElementById('massDuplicateWarningText')
+                    );
+                    const warningEl = document.getElementById('massDuplicateWarning');
+                    if (warningEl) warningEl.style.display = 'flex';
+                    // Блокируем кнопку "Подтвердить загрузку"
+                    dc.allowedByUser = false;
+
+                    // Гарантируем, что кнопка подтверждения дубликата активна
+                    const confirmBtn = document.getElementById('massDuplicateConfirmBtn');
+                    if (confirmBtn) {
+                        confirmBtn.disabled = false;
+                        confirmBtn.style.opacity = '1';
+                        confirmBtn.style.cursor = 'pointer';
+                        confirmBtn.style.pointerEvents = 'auto';
+                        console.log('🔘 Кнопка подтверждения дубликата активирована');
+                    }
+                } else {
+                    dc.duplicateFound = false;
+                    dc.allowedByUser = true;
+                    document.getElementById('massDuplicateWarning').style.display = 'none';
+                }
+
+            this.massUploadUpdateConfirmButton();
+
+        } catch (error) {
+            console.error('Ошибка анализа массовой загрузки:', error);
+            document.getElementById('massPreviewBody').innerHTML = `<tr><td colspan="6" style="color: #ef4444; padding: 20px;">❌ Ошибка: ${error.message}</td></tr>`;
+        }
+    },
+
+    async massUploadPerformAnalysis() {
         const kodColIndex = parseInt(document.getElementById('massKodColumnSelect').value) || 0;
         const qtyColIndex = document.getElementById('massQtyColumnSelect').value !== '' ? parseInt(document.getElementById('massQtyColumnSelect').value) : -1;
 
         if (document.getElementById('massKodColumnSelect').value === '') {
             alert('Укажите колонку с кодом товара!');
-            return;
+            return { analyzedData: [], conflicts: [], totalRows: 0, foundCount: 0, notFoundCount: 0 };
         }
-
-        document.getElementById('massStep2').style.display = 'none';
-        document.getElementById('massStep3').style.display = 'block';
-        document.getElementById('massBlockWarning').style.display = 'none';
-        document.getElementById('massConflictWarning').style.display = 'none';
-        document.getElementById('massPreviewBody').innerHTML = '<tr><td colspan="6" class="loading-state">Анализ...</td></tr>';
 
         try {
             const wneskodMap = await this.massUploadGetAllWnesKod();
 
-            this.massUploadData.analyzedData = [];
+            const analyzedData = [];
             let foundCount = 0;
             let notFoundCount = 0;
 
@@ -6084,7 +6273,7 @@ const WAREHOUSE = {
                 }
 
                 if (wneskodRecord) {
-                    this.massUploadData.analyzedData.push({
+                    analyzedData.push({
                         csvKod: csvKod,
                         ourKod: wneskodRecord.ourKod,
                         art: wneskodRecord.art,
@@ -6093,7 +6282,7 @@ const WAREHOUSE = {
                     });
                     foundCount++;
                 } else {
-                    this.massUploadData.analyzedData.push({
+                    analyzedData.push({
                         csvKod: csvKod,
                         ourKod: null,
                         art: null,
@@ -6106,7 +6295,7 @@ const WAREHOUSE = {
 
             // Конфликты
             const ourKodToCsvKods = {};
-            for (const item of this.massUploadData.analyzedData) {
+            for (const item of analyzedData) {
                 if (item.ourKod) {
                     if (!ourKodToCsvKods[item.ourKod]) {
                         ourKodToCsvKods[item.ourKod] = [];
@@ -6117,29 +6306,18 @@ const WAREHOUSE = {
                 }
             }
 
-            this.massUploadData.conflicts = [];
+            const conflicts = [];
             for (const [ourKod, csvKods] of Object.entries(ourKodToCsvKods)) {
                 if (csvKods.length > 1) {
-                    this.massUploadData.conflicts.push({ ourKod, csvKods });
+                    conflicts.push({ ourKod, csvKods });
                 }
             }
 
-            document.getElementById('massTotalRows').textContent = this.massUploadData.csvRows.length;
-            document.getElementById('massFoundRows').textContent = foundCount;
-            document.getElementById('massNotFoundRows').textContent = notFoundCount;
-
-            if (this.massUploadData.conflicts.length > 0) {
-                document.getElementById('massConflictWarning').style.display = 'flex';
-            } else {
-                document.getElementById('massConflictWarning').style.display = 'none';
-            }
-
-            this.massUploadRenderPreview();
-            this.massUploadUpdateConfirmButton();
+            return { analyzedData, conflicts, totalRows: this.massUploadData.csvRows.length, foundCount, notFoundCount };
 
         } catch (error) {
             console.error('Ошибка анализа массовой загрузки:', error);
-            alert('Ошибка анализа: ' + error.message);
+            throw error;
         }
     },
 
@@ -6197,8 +6375,6 @@ const WAREHOUSE = {
             return;
         }
 
-        if (!confirm(`Скопировать ${foundItems.length} товаров в колонку "План"?`)) return;
-
         try {
             // Суммируем количество по kod
             const planData = {};
@@ -6206,36 +6382,141 @@ const WAREHOUSE = {
                 planData[item.ourKod] = (planData[item.ourKod] || 0) + item.qty;
             }
 
-            // Копируем значения в колонку "План" и записываем в БД (аналогично ручному вводу)
-            let copiedCount = 0;
-            for (const [kod, koli] of Object.entries(planData)) {
-                const input = document.querySelector(`input[data-kod="${kod}"][data-field="plan"]`);
-                if (input) {
-                    // Заполняем поле
-                    input.value = koli > 0 ? koli : '';
-                    copiedCount++;
+            const userId = localStorage.getItem('userId') || '';
+            const userName = localStorage.getItem('userName') || userId;
+            const now = new Date();
+            const todayStr = now.toISOString().split('T')[0];
+            const dataStr = now.toISOString().split('T')[0];
+            const timeStr = now.toTimeString().split(' ')[0].slice(0, 5);
+            const nomer = this.currentSessionNomer || '';
 
-                    // Аналогично blur-обработчику: сохраняем в IndexedDB
-                    if (koli > 0) {
-                        try {
-                            const db = await this.getDb();
-                            const tx = db.transaction('warehouse_cache', 'readwrite');
-                            tx.objectStore('warehouse_cache').put({ kod, value: koli, timestamp: Date.now() });
-                        } catch (e) {
-                            console.error('Ошибка сохранения в IndexedDB:', e);
+            if (!nomer) {
+                console.warn('⚠️ Номер сессии не определён, используем дефолтный');
+            }
+
+            // Собираем все kod из planData
+            const allKods = Object.keys(planData);
+            if (allKods.length === 0) {
+                alert('Нет товаров для загрузки.');
+                return;
+            }
+
+            // Безопасная защита от SQL-инъекций
+            const safeNomer = String(nomer || '').replace(/'/g, "''");
+            const safeUserName = String(userName || '').replace(/'/g, "''");
+
+            // Проверяем, какие из них оптовики (1 batch-запрос вместо N)
+            const optKodList = allKods.map(k => `'${k.replace(/'/g, "''")}'`).join(',');
+            const optResult = await this.query(
+                `SELECT "kod", "opt" FROM "guide" WHERE "kod" IN (${optKodList})`
+            );
+
+            const optSet = new Set(); // kod оптовиков
+            const regularSet = new Set(); // kod обычных
+            if (optResult?.trim()) {
+                const optLines = optResult.trim().split('\n').filter(l => l);
+                if (optLines.length > 1) {
+                    const optHeaders = optLines[0].split('\t').map(h => h.trim().toLowerCase());
+                    const kodIdx = optHeaders.indexOf('kod');
+                    const optIdx = optHeaders.indexOf('opt');
+                    for (let i = 1; i < optLines.length; i++) {
+                        const parts = optLines[i].split('\t');
+                        const k = kodIdx >= 0 ? parts[kodIdx]?.trim() : '';
+                        const o = optIdx >= 0 ? parts[optIdx]?.trim() : '';
+                        if (k && o === 'Сборка') {
+                            optSet.add(k);
+                        } else if (k) {
+                            regularSet.add(k);
                         }
-
-                        // Записываем в БД zakaz (аналогично blur при ручном вводе)
-                        await this.syncPlanToZakaz(kod, koli);
                     }
                 }
             }
 
+            // 1. DELETE старых плановых записей для этих kod + nomer + user
+            const deleteRegular = `DELETE FROM "zakaz" WHERE "kod" IN (${optKodList}) AND "nomer"='${safeNomer}' AND "user"='${safeUserName}' AND "status"=1`;
+            await this.query(deleteRegular);
+
+            // Для оптовиков — удаляем самих оптовиков + компоненты
+            if (optSet.size > 0) {
+                for (const optKod of optSet) {
+                    const safeOptKod = String(optKod || '').replace(/'/g, "''");
+                    // Удаляем оптовика
+                    await this.query(
+                        `DELETE FROM "zakaz" WHERE "kod"='${safeOptKod}' AND "nomer"='${safeNomer}' AND "user"='${safeUserName}' AND "status"=2`
+                    );
+                    // Удаляем компоненты
+                    const compResult = await this.getApprovedComponents(optKod);
+                    if (compResult.length > 0) {
+                        const compKodList = compResult.map(c => `'${String(c.kod || '').replace(/'/g, "''")}'`).join(',');
+                        await this.query(
+                            `DELETE FROM "zakaz" WHERE "kod" IN (${compKodList}) AND "nomer"='${safeNomer}' AND "user"='${safeUserName}' AND "status"=2`
+                        );
+                    }
+                }
+            }
+
+            // 2. INSERT обычных товаров
+            let copiedCount = 0;
+            const regularInserts = [];
+            for (const [kod, koli] of Object.entries(planData)) {
+                if (!regularSet.has(kod) || koli <= 0) continue;
+                const safeKod = String(kod || '').replace(/'/g, "''");
+                regularInserts.push(
+                    `('${safeKod}', ${koli}, '${safeNomer}', '${safeUserName}', 1, '${dataStr}', '${timeStr}')`
+                );
+                copiedCount++;
+                // Обновляем DOM
+                const input = document.querySelector(`input[data-kod="${kod}"][data-field="plan"]`);
+                if (input) {
+                    input.value = koli > 0 ? koli : '';
+                }
+            }
+            if (regularInserts.length > 0) {
+                await this.query(
+                    `INSERT INTO "zakaz" ("kod", "koli", "nomer", "user", "status", "data", "time") VALUES ${regularInserts.join(', ')}`
+                );
+            }
+
+            // 3. INSERT оптовиков и компонентов
+            for (const [optKod, koli] of Object.entries(planData)) {
+                if (!optSet.has(optKod) || koli <= 0) continue;
+                const safeOptKod = String(optKod || '').replace(/'/g, "''");
+                // Оптовик
+                await this.query(
+                    `INSERT INTO "zakaz" ("kod", "koli", "nomer", "user", "status", "data", "time") VALUES ('${safeOptKod}', ${koli}, '${safeNomer}', '${safeUserName}', 2, '${dataStr}', '${timeStr}')`
+                );
+                // Компоненты
+                const components = await this.getApprovedComponents(optKod);
+                const compInserts = [];
+                for (const comp of components) {
+                    const totalKoli = koli * comp.koliPerUnit;
+                    const safeCompKod = String(comp.kod || '').replace(/'/g, "''");
+                    compInserts.push(
+                        `('${safeCompKod}', ${totalKoli}, '${safeNomer}', '${safeUserName}', 2, '${dataStr}', '${timeStr}')`
+                    );
+                    // Обновляем DOM компонента
+                    const compInput = document.querySelector(`input[data-kod="${comp.kod}"][data-field="plan"]`);
+                    if (compInput) {
+                        compInput.value = totalKoli > 0 ? totalKoli : '';
+                    }
+                }
+                if (compInserts.length > 0) {
+                    await this.query(
+                        `INSERT INTO "zakaz" ("kod", "koli", "nomer", "user", "status", "data", "time") VALUES ${compInserts.join(', ')}`
+                    );
+                }
+                copiedCount++;
+                // Обновляем DOM оптовика
+                const optInput = document.querySelector(`input[data-kod="${optKod}"][data-field="plan"]`);
+                if (optInput) {
+                    optInput.value = koli > 0 ? koli : '';
+                }
+            }
+
             // Записываем информацию о загрузке в mass_upload
-            const today = new Date();
-            const todayStr = today.toISOString().split('T')[0];
-            const fileName = this.massUploadData.currentFile?.name || 'unknown';
+            const fileName = String(this.massUploadData.currentFile?.name || 'unknown').replace(/'/g, "''");
             const recordCount = this.massUploadData.analyzedData.length;
+            const safeUserId = String(this.userId || 'unknown').replace(/'/g, "''");
 
             // Получаем дату создания/изменения файла из File API
             let fileDateStr = todayStr;
@@ -6244,7 +6525,7 @@ const WAREHOUSE = {
             }
 
             // Генерируем простой хэш содержимого файла
-            const fileContent = this.massUploadData.analyzedData.map(item => 
+            const fileContent = this.massUploadData.analyzedData.map(item =>
                 `${item.csvKod}|${item.ourKod}|${item.art}|${item.qty}`
             ).join('\n');
             let fileHash = 0;
@@ -6257,13 +6538,23 @@ const WAREHOUSE = {
 
             // Записываем в mass_upload (type='upload')
             // upload_date = дата создания файла (из File API)
-            const insertSql = `INSERT INTO "mass_upload" ("type", "filename", "upload_date", "file_hash", "record_count", "user_id") VALUES ('upload', '${fileName.replace(/'/g, "''")}', '${fileDateStr}', '${fileHashStr}', ${recordCount}, '${this.userId || 'unknown'}')`;
+            const insertSql = `INSERT INTO "mass_upload" ("type", "filename", "upload_date", "file_hash", "record_count", "user_id") VALUES ('upload', '${fileName}', '${fileDateStr}', '${fileHashStr}', ${recordCount}, '${safeUserId}')`;
             await this.query(insertSql);
             console.log('📝 Запись в mass_upload:', insertSql);
             console.log('📅 Дата создания файла:', fileDateStr);
 
+            // ОБНОВЛЕНИЕ DOM: loadReserve + recalc 1 раз на ВСЕ изменения
+            try {
+                await this.loadReserve();
+                this.updateAllRowsAvailability();
+                await this.recalcAllOptAvail();
+            } catch (e) {
+                console.error('Ошибка обновления после массовой загрузки:', e);
+            }
+
+            console.log('✅ Массовая загрузка успешна, copiedCount:', copiedCount);
             this.closeMassUploadModal();
-            alert(`✅ Скопировано ${copiedCount} из ${Object.keys(planData).length} товаров в колонку "План"`);
+            this.massUploadShowSuccessAnimation(copiedCount);
 
         } catch (error) {
             console.error('Ошибка копирования в план:', error);
@@ -6272,48 +6563,68 @@ const WAREHOUSE = {
     },
 
     // ============================================================
-    // АВТО-ОПРЕДЕЛЕНИЕ МАГАЗИНА ПО СОВПАДЕНИЮ КОЛОНОК
+    // АНИМАЦИЯ УСПЕШНОЙ ЗАГРУЗКИ
     // ============================================================
-    async massUploadAutoMatchStore() {
-        try {
-            const result = await this.query(`SELECT "id", "store_name", "kod_col", "name_col", "qty_col" FROM "mass_upload" WHERE "type"='config' ORDER BY "store_name"`);
-            const lines = result.trim().split('\n').filter(l => l);
-            if (lines.length <= 1) return;
+    massUploadShowSuccessAnimation(count) {
+        // Убираем старый оверлей если есть
+        const oldToast = document.getElementById('massSuccessToast');
+        if (oldToast) oldToast.remove();
 
-            let bestMatch = null;
-            let bestScore = 0;
+        // Создаём компактный toast сверху
+        const toast = document.createElement('div');
+        toast.id = 'massSuccessToast';
+        toast.style.cssText = `
+            position: fixed;
+            top: -80px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100001;
+            background: #0f172a;
+            border: 2px solid #22c55e;
+            border-radius: 12px;
+            padding: 12px 32px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 4px 24px rgba(34, 197, 94, 0.4);
+            transition: top 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+        `;
 
-            for (let i = 1; i < lines.length; i++) {
-                const cols = lines[i].split('\t');
-                const store = {
-                    id: parseInt(cols[0]),
-                    name: cols[1] || `Магазин #${cols[0]}`,
-                    kod_col: cols[2] || '',
-                    name_col: cols[3] || '',
-                    qty_col: cols[4] || ''
-                };
+        toast.innerHTML = `
+            <div style="
+                width: 28px;
+                height: 28px;
+                border-radius: 50%;
+                background: #22c55e;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 16px;
+                font-weight: bold;
+                color: #fff;
+                flex-shrink: 0;
+            ">✓</div>
+            <div style="
+                font-size: 1rem;
+                font-weight: 600;
+                color: #22c55e;
+            ">Загружено <strong style="color: #4ade80;">${count}</strong> записей в план</div>
+        `;
 
-                let score = 0;
-                if (store.kod_col) score += this.massUploadMatchColumn(store.kod_col);
-                if (store.name_col) score += this.massUploadMatchColumn(store.name_col);
-                if (store.qty_col) score += this.massUploadMatchColumn(store.qty_col);
+        document.body.appendChild(toast);
 
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestMatch = store;
-                }
-            }
+        // Запускаем анимацию появления
+        requestAnimationFrame(() => {
+            toast.style.top = '24px';
+        });
 
-            if (bestMatch && bestScore > 0) {
-                document.getElementById('massStoreInfo').style.display = 'block';
-                document.querySelector('#massStoreInfo .store-name').textContent = bestMatch.name;
-
-                if (bestMatch.kod_col) this.massUploadAutoSelectColumn('massKodColumnSelect', bestMatch.kod_col);
-                if (bestMatch.qty_col) this.massUploadAutoSelectColumn('massQtyColumnSelect', bestMatch.qty_col);
-            }
-        } catch (error) {
-            console.error('Ошибка автоопределения магазина:', error);
-        }
+        // Скрываем через 3 секунды
+        setTimeout(() => {
+            toast.style.top = '-80px';
+            setTimeout(() => {
+                toast.remove();
+            }, 400);
+        }, 3000);
     },
 
     massUploadMatchColumn(columnName) {
@@ -6542,7 +6853,7 @@ const WAREHOUSE = {
             item.status = 'found';
 
             this.massUploadCloseAssignModal();
-            await this.massUploadAnalyze();
+            await this.massUploadRunAnalysis();
             this.massUploadUpdateConfirmButton();
 
         } catch (error) {
@@ -6841,7 +7152,7 @@ const WAREHOUSE = {
             document.getElementById('massConflictWarning').style.display = 'none';
 
             // Перезапускаем анализ
-            await this.massUploadAnalyze();
+            await this.massUploadRunAnalysis();
             this.massUploadUpdateConfirmButton();
 
         } catch (error) {

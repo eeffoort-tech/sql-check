@@ -28,11 +28,35 @@
                     <button id="sdelanoBtn" class="btn btn-success btn-small">✅ Сделано</button>
                     <button id="tasksBtn" class="btn btn-info btn-small" style="background:linear-gradient(135deg,#00b894,#00cec9);">📋 Задачи</button>
                     <button id="createOrderBtn" class="btn btn-warning btn-small" style="background:linear-gradient(135deg,#f39c12,#e67e22);">📝 Создать заказ</button>
-                    <button id="clearPlanBtn" class="btn btn-danger btn-small" style="background:linear-gradient(135deg,#e74c3c,#c0392b);">🗑️ Очистить план</button>
-                    <button id="refreshBtn" class="btn btn-secondary btn-small">🔄 Обновить</button>
+                    <button id="clearPlanBtn" class="btn btn-danger btn-small" style="background:linear-gradient(135deg,#e74c3c,#c0392b);">🗑️ Очистить мои планы</button>
                     <button id="massUploadBtn" class="btn btn-tertiary btn-small" style="background:linear-gradient(135deg,#8b5cf6,#6366f1);">📦 Массовая загрузка</button>
                     <button id="columnsBtn" class="btn btn-ghost btn-small">⚙️ Колонки</button>
+                    <button id="goToSalaryBtn" class="btn btn-ghost btn-small">💰 Моя зарплата</button>
                     <input type="text" id="searchInput" placeholder="Поиск..." class="guide-search-input">
+                </div>
+
+                <!-- Фильтры по типу -->
+                <div class="type-filters" id="typeFilters">
+                    <label class="type-filter">
+                        <input type="checkbox" id="filterTov" checked>
+                        <span class="filter-dot filter-tov"></span>
+                        Товар
+                    </label>
+                    <label class="type-filter">
+                        <input type="checkbox" id="filterVnut" checked>
+                        <span class="filter-dot filter-vnut"></span>
+                        Внутрицех
+                    </label>
+                    <label class="type-filter">
+                        <input type="checkbox" id="filterRash" checked>
+                        <span class="filter-dot filter-rash"></span>
+                        Расходник
+                    </label>
+                    <label class="type-filter">
+                        <input type="checkbox" id="filterUpak" checked>
+                        <span class="filter-dot filter-upak"></span>
+                        Упаковка
+                    </label>
                 </div>
 
                 <div class="guide-table-wrapper" id="warehouseTableContainer">
@@ -57,51 +81,6 @@
                 <button id="saveColumnsBtn" class="btn btn-primary">💾 Сохранить</button>
                 <button id="resetColumnsBtn" class="btn btn-ghost">Сбросить</button>
                 <button id="closeColumnsBtn" class="btn btn-ghost">Закрыть</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Модальное окно "Создать заказ" -->
-    <div id="createOrderModal" class="warehouse-modal" style="display: none;">
-        <div class="warehouse-modal-overlay"></div>
-        <div class="warehouse-modal-content" style="max-width: 900px;">
-            <div class="warehouse-modal-header">
-                <h3>📝 Создание заказа <span id="orderNomer" style="color:#8b5cf6;"></span></h3>
-                <button class="btn-modal-close">×</button>
-            </div>
-            <div class="warehouse-modal-body">
-                <!-- Спиннер загрузки -->
-                <div id="createOrderLoading" class="create-order-loading" style="display:none;">
-                    <div class="loading-spinner"></div>
-                    <span class="loading-text">Обновление данных...</span>
-                </div>
-
-                <div id="createOrderContent" style="display:block;">
-                <div class="guide-toolbar" style="margin-bottom:12px;">
-                    <button id="showAllOrdersFromCreateBtn" class="btn btn-ghost btn-small">📋 Все заказы</button>
-                    <button id="showTodayPlanBtn" class="btn btn-ghost btn-small" style="background:rgba(52,152,219,0.3);border-color:rgba(52,152,219,0.5);">📋 План на сегодня: <strong id="todayPlanNomer">—</strong> (<span id="todayPlanCount">0</span> товаров)</button>
-                </div>
-                <p style="color:#a0a0c0;margin-bottom:16px;">Проверьте товары перед сохранением:</p>
-                <div class="accept-results-table-wrapper" style="max-height:400px;">
-                    <table class="accept-results-table">
-                        <thead>
-                            <tr>
-                                <th>Код</th>
-                                <th>Артикул</th>
-                                <th>Количество</th>
-                            </tr>
-                        </thead>
-                        <tbody id="orderItemsBody">
-                        </tbody>
-                    </table>
-                </div>
-                <div id="orderEmptyMsg" style="text-align:center;padding:20px;color:#a0a0c0;display:none;">Нет товаров для заказа</div>
-                </div>
-            </div>
-            <div class="warehouse-modal-footer">
-                <button id="saveOrderBtn" class="btn btn-primary">📦 Создать заказ</button>
-                <button id="saveAsDraftBtn" class="btn btn-warning btn-small" style="background:linear-gradient(135deg,#f39c12,#e67e22);">💾 Сохранить как черновик</button>
-                <button id="cancelOrderBtn" class="btn btn-ghost">Отмена</button>
             </div>
         </div>
     </div>
@@ -637,23 +616,22 @@
 
                 <!-- Чекбоксы настройки дубликатов (видны на шаге 1 и при сбросе) -->
                 <div id="massDuplicateSettings" class="duplicate-settings">
-                    <h3>🛡️ Настройки проверки дубликатов</h3>
+                    <h3>🛡️ Проверка дубликатов</h3>
                     <label class="checkbox-item">
                         <input type="checkbox" id="massChkCheckByName" checked>
-                        <span>Проверять по имени файла (сегодня)</span>
+                        <span>Блокировать загрузку файла с тем же именем (сегодня)</span>
                     </label>
                     <label class="checkbox-item">
                         <input type="checkbox" id="massChkCheckByFileDate" checked>
-                        <span>Проверять по дате создания файла</span>
+                        <span>Блокировать файлы с датой, уже загруженной в БД</span>
                     </label>
                 </div>
 
                 <!-- ШАГ 1: Загрузка файла -->
                 <div id="massStep1" class="mass-upload-section">
-                    <div id="dropZone" class="drop-zone">
+                    <div id="dropZone" class="drop-zone" style="cursor: pointer;">
                         <div class="drop-zone-icon">📂</div>
-                        <div class="drop-zone-text">Перетащите файл (CSV, Excel) сюда или</div>
-                        <label for="massFileInput" class="btn btn-primary">Выбрать файл</label>
+                        <div class="drop-zone-text">Перетащите файл (CSV, Excel) сюда или нажмите для выбора</div>
                         <input type="file" id="massFileInput" accept=".csv,.txt,.tsv,.xlsx,.xls" hidden>
                     </div>
                     <div id="massFileName" class="file-name" style="display: none;">
@@ -665,6 +643,12 @@
                     <div style="margin-top: 12px; text-align: center;">
                         <button id="massManageProfilesBtn" class="btn btn-ghost btn-small">⚙️ Настройки поиска</button>
                     </div>
+
+                    <!-- Чекбокс автоматического перехода -->
+                    <label class="auto-transition-label" style="margin-top: 16px; display: flex; align-items: center; gap: 8px; cursor: pointer; color: #d1d5db; font-size: 0.9rem;">
+                        <input type="checkbox" id="autoTransitionCheck" checked>
+                        <span>🔄 Автоматический переход при определении магазина</span>
+                    </label>
                 </div>
 
                 <!-- ШАГ 2: Настройка колонок -->
@@ -831,5 +815,23 @@
             </div>
         </div>
     </div>
+
+    <!-- Модальное окно загрузки -->
+    <div id="loadingModal" class="warehouse-modal" style="display: none;">
+        <div class="warehouse-modal-overlay" style="background: rgba(0,0,0,0.8);"></div>
+        <div class="warehouse-modal-content" style="max-width: 300px;">
+            <div class="warehouse-modal-body" style="text-align: center; padding: 40px 20px;">
+                <div style="width: 48px; height: 48px; border: 4px solid rgba(100,100,255,0.2); border-top: 4px solid #8b5cf6; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px;"></div>
+                <div style="color: #e0e0ff; font-size: 16px; font-weight: 600;">Сохранение и переход...</div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
 </body>
 </html>

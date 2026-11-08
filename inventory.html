@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Инвентаризация</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="warehouse.css">
+    <style>
+        .inventory-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .inventory-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .inventory-header h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+
+        .inventory-controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .inventory-controls select,
+        .inventory-controls input {
+            padding: 8px 12px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 6px;
+            background: rgba(0,0,0,0.3);
+            color: #fff;
+            font-size: 14px;
+        }
+
+        .inventory-controls select:focus,
+        .inventory-controls input:focus {
+            outline: none;
+            border-color: #8b5cf6;
+        }
+
+        .inventory-controls input:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .inventory-controls button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            background: #8b5cf6;
+            color: #fff;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .inventory-controls button:hover {
+            background: #7c3aed;
+        }
+
+        .search-status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .search-status.success {
+            display: block;
+            background: rgba(34, 197, 94, 0.2);
+            border: 1px solid #22c55e;
+            color: #22c55e;
+        }
+
+        .search-status.error {
+            display: block;
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid #ef4444;
+            color: #ef4444;
+        }
+
+        .search-status.warning {
+            display: block;
+            background: rgba(251, 191, 36, 0.2);
+            border: 1px solid #fbbf24;
+            color: #fbbf24;
+        }
+
+        .inventory-table-wrapper {
+            overflow-y: auto;
+            max-height: 600px;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+        }
+
+        .inventory-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .inventory-table thead {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: #1e1e2e;
+        }
+
+        .inventory-table th {
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid rgba(139, 92, 246, 0.5);
+            color: #8b5cf6;
+        }
+
+        .inventory-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            color: #e0e0e0;
+        }
+
+        .inventory-table tbody tr:hover {
+            background: rgba(139, 92, 246, 0.1);
+        }
+
+        .inventory-table .row-zero {
+            opacity: 0.4;
+            text-decoration: line-through;
+        }
+
+        .inventory-table .row-scratched {
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .inventory-table .row-crossort {
+            background: rgba(251, 191, 36, 0.15);
+            font-weight: bold;
+        }
+
+        .write-off-btn {
+            background: none;
+            border: 1px solid rgba(239, 68, 68, 0.5);
+            color: #ef4444;
+            padding: 6px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .write-off-btn:hover {
+            background: rgba(239, 68, 68, 0.2);
+        }
+
+        .qty-cell {
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .qty-zero {
+            color: #666;
+        }
+
+        .qty-scratched {
+            color: #ef4444;
+        }
+
+        .qty-crossort {
+            color: #fbbf24;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #a0a0c0;
+        }
+
+        .back-btn {
+            padding: 8px 16px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 6px;
+            background: transparent;
+            color: #e0e0e0;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .back-btn:hover {
+            background: rgba(255,255,255,0.1);
+        }
+
+        /* ===== Стили для истории ===== */
+        .history-section {
+            margin-top: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .history-header {
+            background: rgba(139, 92, 246, 0.2);
+            padding: 12px;
+            font-weight: 600;
+            color: #8b5cf6;
+            border-bottom: 2px solid rgba(139, 92, 246, 0.5);
+        }
+
+        .history-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .history-table th {
+            padding: 10px 12px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            color: #a0a0c0;
+            font-size: 13px;
+        }
+
+        .history-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            color: #e0e0e0;
+            font-size: 14px;
+        }
+
+        .history-table tr:hover {
+            background: rgba(139, 92, 246, 0.05);
+        }
+
+        .history-table .history-success {
+            background: rgba(34, 197, 94, 0.1);
+            color: #22c55e;
+        }
+
+        .history-table .history-warning {
+            background: rgba(251, 191, 36, 0.1);
+            color: #fbbf24;
+        }
+
+        .history-empty {
+            padding: 20px;
+            text-align: center;
+            color: #666;
+            font-style: italic;
+        }
+
+        /* ===== Toast уведомление ===== */
+        .toast-notification {
+            position: fixed;
+            top: -100px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100000;
+            padding: 16px 28px;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            color: #fff;
+            opacity: 0;
+            transition: top 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease;
+            pointer-events: none;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            max-width: 90vw;
+            text-align: center;
+        }
+
+        .toast-notification.show {
+            top: 20px;
+            opacity: 1;
+        }
+
+        .toast-notification.toast-success {
+            background: rgba(34, 197, 94, 0.95);
+            border: 2px solid #22c55e;
+        }
+
+        .toast-notification.toast-error {
+            background: rgba(239, 68, 68, 0.95);
+            border: 2px solid #ef4444;
+        }
+
+        .toast-notification.toast-warning {
+            background: rgba(251, 191, 36, 0.95);
+            border: 2px solid #fbbf24;
+            color: #000;
+        }
+
+        /* ===== Модальное окно списания ===== */
+        .writeoff-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 99999;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .writeoff-modal.show {
+            display: flex;
+        }
+
+        .writeoff-modal-content {
+            background: #1e1e2e;
+            border: 2px solid rgba(139, 92, 246, 0.5);
+            border-radius: 12px;
+            padding: 24px;
+            width: 90%;
+            max-width: 450px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+
+        .writeoff-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .writeoff-modal-header h3 {
+            margin: 0;
+            color: #8b5cf6;
+            font-size: 18px;
+        }
+
+        .writeoff-modal-close {
+            background: none;
+            border: none;
+            color: #a0a0c0;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+        }
+
+        .writeoff-modal-close:hover {
+            color: #fff;
+        }
+
+        .writeoff-info {
+            margin-bottom: 16px;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+        }
+
+        .writeoff-info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .writeoff-info-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .writeoff-info-label {
+            color: #a0a0c0;
+        }
+
+        .writeoff-info-value {
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .writeoff-form-group {
+            margin-bottom: 16px;
+        }
+
+        .writeoff-form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #a0a0c0;
+            font-size: 14px;
+        }
+
+        .writeoff-form-group input[type="number"] {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+            font-size: 16px;
+        }
+
+        .writeoff-form-group input[type="number"]:focus {
+            outline: none;
+            border-color: #8b5cf6;
+        }
+
+        .writeoff-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .writeoff-checkbox input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .writeoff-checkbox label {
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .writeoff-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .writeoff-btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .writeoff-btn-primary {
+            background: #8b5cf6;
+            color: #fff;
+        }
+
+        .writeoff-btn-primary:hover {
+            background: #7c3aed;
+        }
+
+        .writeoff-btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .writeoff-btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: #a0a0c0;
+        }
+
+        .writeoff-btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .writeoff-error {
+            color: #ef4444;
+            font-size: 12px;
+            margin-top: 4px;
+            display: none;
+        }
+
+        .writeoff-edizm {
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+            min-width: 60px;
+            text-align: right;
+        }
+
+        .writeoff-modal-content {
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="inventory-container">
+        <div class="inventory-header">
+            <h1>📦 Инвентаризация</h1>
+            <button class="back-btn" id="backBtn">← Назад</button>
+        </div>
+
+        <div class="inventory-controls">
+            <label>Тип позиции:
+                <select id="typeSelect">
+                    <option value="" disabled selected hidden>Выберите тип...</option>
+                    <option value="Товар">Товар</option>
+                    <option value="Внутрицех">Внутрицех</option>
+                    <option value="Расходник">Расходник</option>
+                    <option value="Упаковка">Упаковка</option>
+                </select>
+            </label>
+
+            <label>Код из подмены:
+                <input type="text" id="podmenaInput" placeholder="Введите kodpod..." disabled>
+            </label>
+
+            <div id="searchStatus" class="search-status"></div>
+        </div>
+
+        <div class="inventory-table-wrapper">
+            <table class="inventory-table">
+                <thead>
+                    <tr>
+                        <th>Код</th>
+                        <th>Артикул</th>
+                        <th>Количество</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody id="inventoryTableBody">
+                    <tr><td colspan="4" class="no-data">Выберите тип позиции для загрузки данных</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- История сканирования -->
+        <div class="history-section">
+            <div class="history-header">📋 История сканирования</div>
+            <div id="historyContainer" style="max-height: 400px; overflow-y: auto;">
+                <div class="history-empty">История пуста</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно списания -->
+    <div id="writeoffModal" class="writeoff-modal">
+        <div class="writeoff-modal-content">
+            <div class="writeoff-modal-header">
+                <h3>🗑️ Списание товара</h3>
+                <button class="writeoff-modal-close" id="closeWriteoffModal">×</button>
+            </div>
+            <div class="writeoff-info">
+                <div class="writeoff-info-row">
+                    <span class="writeoff-info-label">Код:</span>
+                    <span class="writeoff-info-value" id="writeoffKod">—</span>
+                </div>
+                <div class="writeoff-info-row">
+                    <span class="writeoff-info-label">Артикул:</span>
+                    <span class="writeoff-info-value" id="writeoffArt">—</span>
+                </div>
+            </div>
+            <div class="writeoff-form-group">
+                <label for="writeoffQty">Количество для списания:</label>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <input type="number" id="writeoffQty" min="0" step="1" placeholder="0" disabled>
+                    <span id="writeoffEdizmDisplay" class="writeoff-edizm">—</span>
+                </div>
+                <div class="writeoff-error" id="writeoffError">Введите корректное количество</div>
+            </div>
+            <div class="writeoff-checkbox">
+                <input type="checkbox" id="writeoffDefect">
+                <label for="writeoffDefect">Брак</label>
+            </div>
+            <div class="writeoff-actions">
+                <button class="writeoff-btn writeoff-btn-primary" id="confirmWriteoffBtn">Списать</button>
+                <button class="writeoff-btn writeoff-btn-secondary" id="cancelWriteoffBtn">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toastNotification" class="toast-notification"></div>
+
+    <!-- Звуки -->
+    <audio id="soundWriteoff" preload="auto">
+        <source src="DELETE.mp3" type="audio/mpeg">
+    </audio>
+
+    <script src="auth.js"></script>
+    <script src="inventory.js"></script>
+</body>
+</html>

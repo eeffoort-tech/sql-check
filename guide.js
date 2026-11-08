@@ -474,7 +474,7 @@ const GUIDE = {
         });
 
         document.getElementById('backBtn').addEventListener('click', () => {
-            window.location.href = 'admin.html';
+            window.history.back();
         });
 
         document.getElementById('addRecordBtn').addEventListener('click', () => {

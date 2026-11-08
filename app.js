@@ -36,7 +36,7 @@ function cacheDOMElements() {
  */
 const ConnectionHistory = {
     STORAGE_KEY: 'connectionHistory',
-    MAX_ITEMS: 3,
+    MAX_ITEMS: 5,
 
     getAll() {
         try {

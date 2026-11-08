@@ -8,62 +8,48 @@
     <link rel="stylesheet" href="login.css">
 </head>
 <body>
+    <div class="toast-container" id="toastContainer"></div>
+
     <div class="container">
         <header>
-            <h1>🔐 Вход в систему</h1>
-            <p class="subtitle">Подключитесь к серверу и введите данные</p>
+            <h1>3D IDEA</h1>
         </header>
 
         <main>
             <div class="input-section">
                 <!-- Подключение к серверу -->
                 <div class="connection-step">
-                    <h3>Шаг 1: Подключение к серверу</h3>
                     <label for="ipInput">IP-адрес сервера:</label>
                     <div class="ip-input-group">
                         <input
                             type="text"
                             id="ipInput"
+                            list="ipHistoryList"
                             placeholder="192.168.1.100"
                             autocomplete="off"
                         >
+                        <datalist id="ipHistoryList"></datalist>
                         <span class="port-hint">:8080/query?sql=...</span>
-                    </div>
-
-                    <!-- История подключений -->
-                    <div id="connectionHistory" class="connection-history" style="display: none;">
-                        <div class="history-label">📋 Последние подключения:</div>
-                        <div id="historyList" class="history-list"></div>
                     </div>
 
                     <div class="button-group">
                         <button id="connectBtn" class="btn btn-primary">
                             <span class="btn-icon">🔍</span> Подключиться
                         </button>
-                        <button id="clearBtn" class="btn btn-ghost">
-                            Очистить
+                        <button id="guideBtn" class="btn btn-ghost">
+                            <span class="btn-icon">📖</span> Инструкция
                         </button>
                     </div>
                 </div>
 
-                <!-- Статус подключения -->
-                <div class="status-section" id="statusSection" style="display: none;">
-                    <div class="status-header">
-                        <span class="status-indicator" id="statusIcon"></span>
-                        <span class="status-text" id="statusText"></span>
-                    </div>
-                    <div class="status-details" id="statusDetails"></div>
-                </div>
-
                 <!-- Авторизация (неактивна до подключения) -->
                 <div class="auth-step" id="authStep" disabled>
-                    <h3>Шаг 2: Авторизация</h3>
                     <div class="form-group">
-                        <label for="userIdInput">ID сотрудника:</label>
+                        <label for="userIdInput">Логин:</label>
                         <input
                             type="text"
                             id="userIdInput"
-                            placeholder="Введите ID"
+                            placeholder="Введите логин"
                             disabled
                         >
                     </div>
@@ -85,9 +71,17 @@
                     </div>
                 </div>
             </div>
+        </main>
+    </div>
 
-            <div class="info-section">
-                <h3>ℹ️ Инструкция</h3>
+    <!-- Модальное окно "Инструкция" -->
+    <div id="guideModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>ℹ️ Инструкция</h2>
+                <button id="closeGuideBtn" class="modal-close" aria-label="Закрыть">✕</button>
+            </div>
+            <div class="modal-body">
                 <ol>
                     <li>Запустите Android-приложение и загрузите базу данных</li>
                     <li>Убедитесь, что устройство подключено к той же сети</li>
@@ -100,9 +94,10 @@
                     ⚠️ Убедитесь, что на устройстве запущен SQL-сервер (не FTP режим)
                 </div>
             </div>
-        </main>
+        </div>
     </div>
 
+    <script src="auth.js"></script>
     <script src="app.js"></script>
     <script src="login.js"></script>
 </body>

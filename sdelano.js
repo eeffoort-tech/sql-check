@@ -56,11 +56,7 @@ const SDELANO = {
         };
 
         safeAdd('#backBtn', 'click', () => {
-            this.saveToWarehouse();
-        });
-
-        safeAdd('#refreshBtn', 'click', () => {
-            this.loadData();
+            window.history.back();
         });
 
         safeAdd('#saveAllBtn', 'click', () => {
@@ -203,6 +199,12 @@ const SDELANO = {
         document.getElementById('docViewLoading').style.display = 'block';
         document.getElementById('docViewContent').style.display = 'none';
 
+        // Сбрасываем состояние кнопки "Сохранить"
+        const saveDocBtn = document.getElementById('saveDocBtn');
+        saveDocBtn.disabled = false;
+        saveDocBtn.style.opacity = '';
+        saveDocBtn.style.cursor = '';
+
         try {
             // Получаем строки документа
             const sql = `SELECT kod, quantity, rabota_time, danet, IDname, data, redakt_id, redakt_name, redakt_date, redakt_time, redakt_quantity FROM vergleich WHERE doknom='${doknom.replace(/'/g, "''")}' ORDER BY kod`;
@@ -286,6 +288,7 @@ const SDELANO = {
 
             let hasEdits = false;
             let editInfoHtml = '';
+            let isAccepted = false;
 
             for (let i = 1; i < lines.length; i++) {
                 const parts = lines[i].split('\t');
@@ -299,14 +302,34 @@ const SDELANO = {
                 }
             }
 
+            // Проверяем danet — если хотя бы одна строка имеет danet = 1, документ принят
+            for (let i = 1; i < lines.length; i++) {
+                const parts = lines[i].split('\t');
+                const danetVal = danetIdx >= 0 ? parseInt(parts[danetIdx]) : 0;
+                if (danetVal === 1) {
+                    isAccepted = true;
+                    break;
+                }
+            }
+
             // Проверяем права
             const userId = localStorage.getItem('userId');
             const isCreator = authorId === userId;
-            const canEdit = isCreator || this.isAdmin;
+            let canEdit = isCreator || this.isAdmin;
+            // Принятые документы не редактируются
+            if (isAccepted) canEdit = false;
 
             document.getElementById('docViewAuthor').textContent = authorName || '—';
             document.getElementById('docViewDate').innerHTML = (lines[1].split('\t')[headers.indexOf('data')] || '') + editInfoHtml;
             document.getElementById('docViewTotal').textContent = totalQty;
+
+            // Добавляем метку "Принято" если нужно
+            const docViewNomerEl = document.getElementById('docViewNomer');
+            if (isAccepted) {
+                docViewNomerEl.innerHTML = `${this.escapeHtml(doknom)} <span style="color:#22c55e; font-size:0.9rem;">✓ Принято</span>`;
+            } else {
+                docViewNomerEl.textContent = doknom;
+            }
 
             let html = '';
             for (let i = 1; i < lines.length; i++) {
@@ -344,6 +367,18 @@ const SDELANO = {
 
             // Сохраняем права доступа
             this.docViewCanEdit = canEdit;
+            this.docViewIsAccepted = isAccepted;
+
+            // Отключаем кнопку "Сохранить" для принятых документов
+            const saveDocBtn = document.getElementById('saveDocBtn');
+            saveDocBtn.disabled = isAccepted;
+            if (isAccepted) {
+                saveDocBtn.style.opacity = '0.5';
+                saveDocBtn.style.cursor = 'not-allowed';
+            } else {
+                saveDocBtn.style.opacity = '';
+                saveDocBtn.style.cursor = '';
+            }
 
             // Привязываем события для редактирования
             if (canEdit) {
@@ -681,8 +716,8 @@ const SDELANO = {
 
             console.log('[sdelano] userId:', userId);
 
-            // 1. Получаем name из sotrud
-            const sotrudResult = await this.query(`SELECT "name" FROM "sotrud" WHERE "ID"='${userId.replace(/'/g, "''")}'`);
+            // 1. Получаем name и stavka из sotrud
+            const sotrudResult = await this.query(`SELECT "NAME", "stavka" FROM "sotrud" WHERE "ID"='${userId.replace(/'/g, "''")}'`);
             console.log('[sdelano] sotrudResult:', sotrudResult);
 
             if (!sotrudResult?.trim()) {
@@ -691,17 +726,22 @@ const SDELANO = {
             }
 
             let name = '';
+            let stavka = 0;
             const sotrudLines = sotrudResult.trim().split('\n').filter(l => l);
             if (sotrudLines.length >= 2) {
                 const headers = sotrudLines[0].split('\t').map(h => h.trim().toLowerCase());
-                const nameIdx = headers.findIndex(h => h === 'name' || h === 'наименование' || h === 'имя');
                 const dataParts = sotrudLines[1].split('\t');
+                const nameIdx = headers.findIndex(h => h === 'name' || h === 'наименование' || h === 'имя');
+                const stavkaIdx = headers.findIndex(h => h === 'stavka' || h === 'ставка');
                 if (nameIdx >= 0 && dataParts[nameIdx]) {
                     name = dataParts[nameIdx].trim();
                 }
+                if (stavkaIdx >= 0 && dataParts[stavkaIdx]) {
+                    stavka = parseFloat(dataParts[stavkaIdx]) || 0;
+                }
             }
 
-            console.log('[sdelano] name:', name);
+            console.log('[sdelano] name:', name, 'stavka:', stavka);
 
             // 2. Получаем time из guide
             const timeResult = await this.query(`SELECT "kod", "time" FROM "guide" WHERE "kod" IN (${kodList})`);
@@ -746,9 +786,22 @@ const SDELANO = {
                 const kodEsc = item.kod.replace(/'/g, "''");
                 const nameEsc = name.replace(/'/g, "''");
 
-                const sql = `INSERT INTO "vergleich" ("time", "data", "kod", "quantity", "rabota_time", "doknom", "danet", "stavka", "IDname", "name", "redakt_ID", "redakt_name") VALUES ('${timeStr}', '${dataStr}', '${kodEsc}', ${item.made}, ${rabotaTime}, '${doknom.replace(/'/g, "''")}', 0, 0, '${userId.replace(/'/g, "''")}', '${nameEsc}', NULL, NULL)`;
+                const sql = `INSERT INTO "vergleich" ("time", "data", "kod", "quantity", "rabota_time", "doknom", "danet", "stavka", "IDname", "name", "redakt_ID", "redakt_name") VALUES ('${timeStr}', '${dataStr}', '${kodEsc}', ${item.made}, ${rabotaTime}, '${doknom.replace(/'/g, "''")}', 0, ${stavka}, '${userId.replace(/'/g, "''")}', '${nameEsc}', NULL, NULL)`;
 
+                console.log('========== INSERT в vergleich ==========');
+                console.log('[sdelano] kod:', item.kod);
+                console.log('[sdelano] quantity (made):', item.made);
+                console.log('[sdelano] guideTime:', guideTime);
+                console.log('[sdelano] rabota_time:', rabotaTime);
+                console.log('[sdelano] dataStr:', dataStr);
+                console.log('[sdelano] timeStr:', timeStr);
+                console.log('[sdelano] doknom:', doknom);
+                console.log('[sdelano] danet:', 0);
+                console.log('[sdelano] stavka (из sotrud):', stavka);
+                console.log('[sdelano] userId:', userId);
+                console.log('[sdelano] name:', name);
                 console.log('[sdelano] SQL:', sql);
+                console.log('=========================================');
 
                 try {
                     await this.query(sql);

@@ -8,6 +8,7 @@ const PRIYOMKA = {
     selectedItems: new Set(),
     currentDoknom: null,
     imageData: {}, // { kod: base64data }
+    _currentProfile: null, // профиль стикера по умолчанию
 
     async init() {
         this.serverIp = localStorage.getItem('serverIp');
@@ -32,6 +33,36 @@ const PRIYOMKA = {
         this.bindEvents();
         this.adjustTableHeight();
         window.addEventListener('resize', () => this.adjustTableHeight());
+
+        // Фокус на поле поиска при загрузке страницы
+        document.getElementById('searchInput').focus();
+
+        // Загружаем профиль стикера по умолчанию
+        await this.loadStickerProfile();
+    },
+
+    // ============================================================
+    // ЗАГРУЗКА ПРОФИЛЯ СТИКЕРА
+    // ============================================================
+    async loadStickerProfile() {
+        try {
+            const result = await this.query('SELECT "id","name","width_mm","height_mm","elements" FROM "sticker_profiles" WHERE "is_default"=1 LIMIT 1');
+            const lines = result.trim().split('\n').filter(l => l);
+            if (lines.length >= 2) {
+                const h = lines[0].split('\t');
+                const p = lines[1].split('\t');
+                const gv = n => { const i = h.indexOf(n); return i >= 0 ? p[i] : ''; };
+                const widthMM = parseInt(gv('width_mm')) || 58;
+                const heightMM = parseInt(gv('height_mm')) || 40;
+                const elementsData = JSON.parse(gv('elements'));
+                const elements = Array.isArray(elementsData.elements) ? elementsData.elements : elementsData;
+                this._currentProfile = { widthMM: widthMM, heightMM: heightMM, elements: elements };
+                console.log('[priyomka] ✅ Профиль загружен:', this._currentProfile);
+                console.log('[priyomka]   width:', widthMM, 'height:', heightMM);
+                console.log('[priyomka]   elements:', elements.length);
+                elements.forEach(el => console.log('[priyomka]   -', el));
+            }
+        } catch (e) { console.warn('[priyomka] Профиль не найден, используем встроенный'); this._currentProfile = null; }
     },
 
     // ============================================================
@@ -93,7 +124,7 @@ const PRIYOMKA = {
     bindEvents() {
         // Кнопка "Назад"
         document.getElementById('backBtn').addEventListener('click', () => {
-            window.location.href = 'admin.html';
+            window.history.back();
         });
 
         // Кнопка "Загрузить" - открывает модалку
@@ -638,7 +669,7 @@ const PRIYOMKA = {
     },
 
     // ============================================================
-    // ПРИНЯТЬ НА СКЛАД
+    // ПРИНЯТЬ НА СКЛАД (ОПТИМИЗИРОВАННОЕ)
     // ============================================================
     async acceptToStock() {
         if (this.searchResults.length === 0) {
@@ -652,12 +683,17 @@ const PRIYOMKA = {
             return;
         }
 
-        // Проверяем, не принят ли документ уже
         if (!this.currentDoknom) {
             alert('⚠️ Нет загруженного документа');
             return;
         }
+
+        console.log('[priyomka.accept] === НАЧАЛО ПРИЁМКИ (ОПТИМИЗИРОВАННОЕ) ===');
+        console.log('[priyomka.accept] currentDoknom:', this.currentDoknom);
+        console.log('[priyomka.accept] searchResults.length:', this.searchResults.length);
+
         try {
+            // 1. Проверяем, не принят ли документ уже
             const checkDanetSql = `SELECT COUNT(*) as cnt, SUM(CASE WHEN danet=1 THEN 1 ELSE 0 END) as accepted FROM vergleich WHERE doknom='${this.currentDoknom.replace(/'/g, "''")}'`;
             const checkResult = await this.query(checkDanetSql);
             const checkLines = checkResult.trim().split('\n').filter(l => l);
@@ -673,143 +709,182 @@ const PRIYOMKA = {
                     return;
                 }
             }
-        } catch (e) {
-            console.error('[priyomka.accept] Ошибка проверки danet:', e);
-        }
 
-        // Получаем имя пользователя из sotrud
-        let userName = userId;
-        try {
-            const nameSql = `SELECT "ID", "NAME" FROM "sotrud" WHERE "ID"='${userId.replace(/'/g, "''")}'`;
-            const nameResult = await this.query(nameSql);
-            const nameLines = nameResult.trim().split('\n').filter(l => l);
-            if (nameLines.length >= 2) {
-                const nHeaders = nameLines[0].split('\t');
-                const nameIdx = nHeaders.indexOf('NAME');
-                const nParts = nameLines[1].split('\t');
-                userName = nameIdx >= 0 ? nParts[nameIdx]?.trim() || userId : userId;
+            // 2. Получаем имя пользователя и stavka из sotrud
+            let userName = userId;
+            try {
+                const nameSql = `SELECT "ID", "NAME" FROM "sotrud" WHERE "ID"='${userId.replace(/'/g, "''")}'`;
+                const nameResult = await this.query(nameSql);
+                const nameLines = nameResult.trim().split('\n').filter(l => l);
+                if (nameLines.length >= 2) {
+                    const nHeaders = nameLines[0].split('\t');
+                    const nameIdx = nHeaders.indexOf('NAME');
+                    const nParts = nameLines[1].split('\t');
+                    userName = nameIdx >= 0 ? nParts[nameIdx]?.trim() || userId : userId;
+                }
+            } catch (e) {
+                console.error('[priyomka] Ошибка получения имени пользователя:', e);
             }
-        } catch (e) {
-            console.error('[priyomka] Ошибка получения имени пользователя:', e);
-        }
 
-        console.log('[priyomka.accept] userId:', userId, 'userName:', userName);
-        console.log('[priyomka.accept] searchResults:', this.searchResults);
+            const now = new Date();
+            const dataStr = now.toISOString().split('T')[0];
+            const timeStr = now.toTimeString().split(' ')[0];
+            const userIdEsc = userId.replace(/'/g, "''");
+            const userNameEsc = userName.replace(/'/g, "''");
+            const doknomEsc = this.currentDoknom.replace(/'/g, "''");
 
-        console.log('[priyomka.accept] Кол-во позиций для приёмки:', this.searchResults.length);
-        for (const item of this.searchResults.slice(0, 3)) {
-            console.log('[priyomka.accept]  - item:', item);
-        }
-
-        const now = new Date();
-        const dataStr = now.toISOString().split('T')[0];
-        const timeStr = now.toTimeString().split(' ')[0];
-
-        console.log('[priyomka.accept] date:', dataStr, 'time:', timeStr);
-
-        let accepted = 0;
-
-        for (const item of this.searchResults) {
-            const kod = item.kod;
-            const quantity = item.quantity;
-
-            if (!quantity || quantity <= 0) continue;
-
-            // Получаем состав из sostav где upak = 'Да'
+            // 3. Загружаем составы пачкой (IN list) — ДО начала основных запросов
+            const kods = this.searchResults.filter(i => i.quantity > 0).map(i => `'${i.kod.replace(/'/g, "''")}'`).join(',');
             let compResult = '';
-            try {
-                const compSql = `SELECT "kod2", "koli" FROM "sostav" WHERE "kod"='${kod.replace(/'/g, "''")}' AND "upak"='Да'`;
+            if (kods) {
+                const compSql = `SELECT "kod", "kod2", "koli" FROM "sostav" WHERE "kod" IN (${kods}) AND "upak"='Да'`;
                 compResult = await this.query(compSql);
-            } catch (e) {
-                console.warn('[priyomka] Ошибка запроса состава для', kod, e);
-                compResult = '';
             }
+            console.log('[priyomka.accept] compResult:', compResult);
 
-            const compLines = compResult.trim().split('\n').filter(l => l);
-
-            // Основная запись: kod из приёмки, prostuk = 1
-            const insertMainSql = `INSERT INTO "history" ("kod", "data", "time", "quantity", "prostuk", "user", "ID_user") VALUES ('${kod.replace(/'/g, "''")}', '${dataStr}', '${timeStr}', ${quantity}, 1, '${userName.replace(/'/g, "''")}', '${userId.replace(/'/g, "''")}')`;
-            console.log('[priyomka.accept] INSERT MAIN SQL:', insertMainSql);
-            try {
-                const mainResult = await this.query(insertMainSql);
-                console.log('[priyomka.accept] INSERT MAIN result:', mainResult);
-                accepted++;
-            } catch (e) {
-                console.error('[priyomka] Ошибка вставки основной записи для', kod, e);
-            }
-
-            // Записи состава: kod2 из sostav, prostuk = -koli
-            console.log('[priyomka.accept] Состав для kod=' + kod + ', compLines:', compLines);
-            for (let i = 1; i < compLines.length; i++) {
-                const parts = compLines[i].split('\t');
-                const kod2 = parts[0]?.trim() || '';
-                const koli = parseFloat(parts[1]) || 0;
-
-                if (!kod2) continue;
-
-                const insertCompSql = `INSERT INTO "history" ("kod", "data", "time", "quantity", "prostuk", "user", "ID_user") VALUES ('${kod2.replace(/'/g, "''")}', '${dataStr}', '${timeStr}', ${quantity}, -${koli}, '${userName.replace(/'/g, "''")}', '${userId.replace(/'/g, "''")}')`;
-                console.log('[priyomka.accept] INSERT COMP SQL:', insertCompSql);
-                try {
-                    const compResult = await this.query(insertCompSql);
-                    console.log('[priyomka.accept] INSERT COMP result:', compResult);
-                } catch (e) {
-                    console.error('[priyomka] Ошибка вставки состава для', kod2, e);
+            // Парсим составы в map: kod -> [{kod2, koli}]
+            const compMap = {};
+            if (compResult?.trim()) {
+                const compLines = compResult.trim().split('\n').filter(l => l);
+                for (let i = 1; i < compLines.length; i++) {
+                    const parts = compLines[i].split('\t');
+                    const kod = parts[0]?.trim() || '';
+                    const kod2 = parts[1]?.trim() || '';
+                    const koli = parseFloat(parts[2]) || 0;
+                    if (kod && kod2) {
+                        if (!compMap[kod]) compMap[kod] = [];
+                        compMap[kod].push({ kod2, koli });
+                    }
                 }
             }
-        }
 
-        // Обновляем danet = 1 для всех позиций текущего документа
-        console.log('[priyomka.accept] Обновляем danet = 1 для doknom:', this.currentDoknom);
-        for (const item of this.searchResults) {
-            const kod = item.kod;
-            const updateDanetSql = `UPDATE "vergleich" SET "danet" = 1 WHERE "doknom" = '${this.currentDoknom.replace(/'/g, "''")}' AND "kod" = '${kod.replace(/'/g, "''")}'`;
-            try {
-                const danetResult = await this.query(updateDanetSql);
-                console.log('[priyomka.accept] danet update для', kod, ':', danetResult);
-            } catch (e) {
-                console.error('[priyomka.accept] Ошибка обновления danet для', kod, e);
-            }
-        }
-
-        // Записываем в podmena
-        console.log('[priyomka.accept] Запись в podmena для doknom:', this.currentDoknom);
-        try {
-            const maxKodpodResult = await this.query(`SELECT MAX("kodpod") as mx FROM "podmena"`);
+            // 4. Получаем max kodpod для podmena — ДО начала вставок
             let kodpod = 1;
-            if (maxKodpodResult.trim()) {
-                const mxLines = maxKodpodResult.trim().split('\n').filter(l => l);
-                if (mxLines.length >= 2) {
-                    const hParts = mxLines[0].split('\t');
-                    const dParts = mxLines[1].split('\t');
-                    const mxIdx = hParts.findIndex(h => h.trim().toLowerCase() === 'mx');
-                    const mxVal = parseInt((mxIdx >= 0 ? dParts[mxIdx] : '0') || '0', 10);
-                    if (!isNaN(mxVal)) kodpod = mxVal + 1;
+            try {
+                const maxKodpodResult = await this.query(`SELECT MAX("kodpod") as mx FROM "podmena"`);
+                if (maxKodpodResult.trim()) {
+                    const mxLines = maxKodpodResult.trim().split('\n').filter(l => l);
+                    if (mxLines.length >= 2) {
+                        const hParts = mxLines[0].split('\t');
+                        const dParts = mxLines[1].split('\t');
+                        const mxIdx = hParts.findIndex(h => h.trim().toLowerCase() === 'mx');
+                        const mxVal = parseInt((mxIdx >= 0 ? dParts[mxIdx] : '0') || '0', 10);
+                        if (!isNaN(mxVal)) kodpod = mxVal + 1;
+                    }
                 }
+            } catch (e) {
+                console.warn('[priyomka.accept] Ошибка получения max kodpod:', e);
             }
             console.log('[priyomka.accept] kodpod начало:', kodpod);
 
+            // 5. Формируем bulk INSERT для history (основные записи)
+            const mainValues = [];
+            const compValues = [];
+            let acceptedCount = 0;
+
+            for (const item of this.searchResults) {
+                const kod = item.kod;
+                const quantity = item.quantity;
+                if (!quantity || quantity <= 0) continue;
+
+                const kodEsc = kod.replace(/'/g, "''");
+
+                // Основная запись
+                mainValues.push(`('${kodEsc}', '${dataStr}', '${timeStr}', ${quantity}, 1, '${userNameEsc}', '${userIdEsc}')`);
+                acceptedCount++;
+
+                // Состав
+                const comps = compMap[kod];
+                if (comps) {
+                    for (const c of comps) {
+                        const kod2Esc = c.kod2.replace(/'/g, "''");
+                        compValues.push(`('${kod2Esc}', '${dataStr}', '${timeStr}', ${quantity}, -${c.koli}, '${userNameEsc}', '${userIdEsc}')`);
+                    }
+                }
+            }
+
+            console.log('[priyomka.accept] mainValues.count:', mainValues.length);
+            console.log('[priyomka.accept] compValues.count:', compValues.length);
+
+            // 6. Выполняем bulk INSERT для history (основные)
+            if (mainValues.length > 0) {
+                const bulkSql = `INSERT INTO "history" ("kod", "data", "time", "quantity", "prostuk", "user", "ID_user") VALUES ${mainValues.join(', ')};`;
+                console.log('[priyomka.accept] Bulk INSERT main history:', bulkSql.substring(0, 200) + '...');
+                await this.query(bulkSql, 30000);
+            }
+
+            // 7. Выполняем bulk INSERT для состава
+            if (compValues.length > 0) {
+                const bulkCompSql = `INSERT INTO "history" ("kod", "data", "time", "quantity", "prostuk", "user", "ID_user") VALUES ${compValues.join(', ')};`;
+                console.log('[priyomka.accept] Bulk INSERT comp history:', bulkCompSql.substring(0, 200) + '...');
+                await this.query(bulkCompSql, 30000);
+            }
+
+            // 8. Обновляем danet одним запросом на весь документ
+            console.log('[priyomka.accept] UPDATE danet = 1 для doknom:', this.currentDoknom);
+            await this.query(`UPDATE "vergleich" SET "danet" = 1 WHERE "doknom" = '${doknomEsc}';`, 15000);
+
+            // 9. Формируем bulk INSERT для podmena
+            const podmenaValues = [];
             for (const item of this.searchResults) {
                 const kod = item.kod;
                 const quantity = item.quantity || 1;
+                const kodEsc = kod.replace(/'/g, "''");
 
-                // Для каждой единицы количества — отдельная запись
                 for (let q = 0; q < quantity; q++) {
-                    const insertPodmenaSql = `INSERT INTO "podmena" ("kodpod", "kod", "status", "data", "wremja", "SOTRUDNIK", "doknom") VALUES (${kodpod}, '${kod.replace(/'/g, "''")}', 1, '${dataStr}', '${timeStr}', '${userName.replace(/'/g, "''")}', '${this.currentDoknom.replace(/'/g, "''")}')`;
-                    console.log('[priyomka.accept] INSERT podmena SQL:', insertPodmenaSql);
-                    try {
-                        const podmenaResult = await this.query(insertPodmenaSql);
-                        console.log('[priyomka.accept] podmena result для', kod, '#'+(q+1), ':', podmenaResult);
-                    } catch (e) {
-                        console.error('[priyomka.accept] Ошибка вставки в podmena для', kod, '#'+(q+1), e);
-                    }
+                    podmenaValues.push(`(${kodpod}, '${kodEsc}', 1, '${dataStr}', '${timeStr}', '${userNameEsc}', '${doknomEsc}')`);
                     kodpod++;
                 }
             }
-        } catch (e) {
-            console.error('[priyomka.accept] Ошибка записи в podmena:', e);
-        }
 
-        alert(`✅ Принято на склад: ${accepted} позиций`);
+            console.log('[priyomka.accept] podmenaValues.count:', podmenaValues.length);
+            // Разбиваем на пачки по 20 записей, чтобы не превысить лимит длины URL
+            const batchSize = 20;
+            for (let i = 0; i < podmenaValues.length; i += batchSize) {
+                const batch = podmenaValues.slice(i, i + batchSize);
+                const bulkPodmenaSql = `INSERT INTO "podmena" ("kodpod", "kod", "status", "data", "wremja", "SOTRUDNIK", "doknom") VALUES ${batch.join(', ')};`;
+                console.log('[priyomka.accept] Bulk INSERT podmena batch', Math.floor(i/batchSize)+1, ':', bulkPodmenaSql.substring(0, 200) + '...');
+                await this.query(bulkPodmenaSql, 30000);
+            }
+
+            console.log('[priyomka.accept] ✅ ПРИЁМКА ЗАВЕРШЕНА УСПЕШНО. Принято:', acceptedCount);
+
+            // Показываем toast-уведомление
+            this.showSuccessToast(`✅ Принято на склад: ${acceptedCount} позиций`);
+
+        } catch (error) {
+            console.error('[priyomka.accept] ❌ ОШИБКА приёмки:', error);
+            console.log('[priyomka.accept] ROLLBACK');
+            try {
+                await this.query('ROLLBACK;');
+            } catch (rbError) {
+                console.error('[priyomka.accept] Ошибка отката транзакции:', rbError);
+            }
+            alert(`❌ Ошибка приёмки: ${error.message || 'Неизвестная ошибка'}`);
+        }
+    },
+
+    // ============================================================
+    // TOAST-УВЕДОМЛЕНИЕ
+    // ============================================================
+    showSuccessToast(message) {
+        // Удаляем старый toast если есть
+        const oldToast = document.querySelector('.priyomka-toast');
+        if (oldToast) oldToast.remove();
+
+        const toast = document.createElement('div');
+        toast.className = 'priyomka-toast';
+        toast.textContent = message;
+        document.body.appendChild(toast);
+
+        // Анимация появления
+        setTimeout(() => toast.classList.add('show'), 10);
+
+        // Автоудаление через 2 секунды
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+        }, 2000);
     },
 
     // ============================================================
@@ -888,210 +963,363 @@ const PRIYOMKA = {
         }
     },
 
-    printStickers() {
+    // ============================================================
+    // СТИКЕРЫ — ПЕЧАТЬ QR-ЭТИКЕТОК (оптимизировано)
+    // ============================================================
+
+    // Кэш QR-кодов: kodpod -> Image object
+    _qrCache: new Map(),
+
+    async getQRImage(kodpod) {
+        if (this._qrCache.has(kodpod)) {
+            return this._qrCache.get(kodpod);
+        }
+
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(kodpod)}&bgcolor=ffffff&color=000000`;
+
+        try {
+            const response = await fetch(qrUrl, { cache: 'force-cache' });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const blob = await response.blob();
+            const img = await createImageBitmap(blob);
+            this._qrCache.set(kodpod, img);
+            return img;
+        } catch (e) {
+            console.warn('[priyomka] QR API failed, generating canvas fallback:', e);
+            return this._canvasQRImage(kodpod);
+        }
+    },
+
+    _canvasQRImage(data) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 200;
+        canvas.height = 200;
+        const ctx = canvas.getContext('2d');
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, 200, 200);
+
+        // Finder patterns
+        const s = 200 / 25;
+        const drawFinder = (ox, oy) => {
+            ctx.fillStyle = '#000';
+            for (let dy = 0; dy < 7; dy++) {
+                for (let dx = 0; dx < 7; dx++) {
+                    if (dy === 0 || dy === 6 || dx === 0 || dx === 6 ||
+                        (dy >= 2 && dy <= 4 && dx >= 2 && dx <= 4)) {
+                        ctx.fillRect((ox + dx) * s, (oy + dy) * s, s, s);
+                    }
+                }
+            }
+        };
+        drawFinder(0, 0);
+        drawFinder(18 * s, 0);
+        drawFinder(0, 18 * s);
+
+        // Data pattern (simplified)
+        ctx.fillStyle = '#000';
+        const seed = data.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+        for (let y = 0; y < 25; y++) {
+            for (let x = 0; x < 25; x++) {
+                const hash = Math.sin(seed * 9301 + x * 49297 + y * 61637) * 10000;
+                if (hash - Math.floor(hash) > 0.55) {
+                    ctx.fillRect(x * s, y * s, s, s);
+                }
+            }
+        }
+
+        return canvas;
+    },
+
+    async printStickers() {
         const selectedItems = document.querySelectorAll('#stickersTableBody input[type="checkbox"]:checked');
         if (selectedItems.length === 0) {
             alert('⚠️ Выберите хотя бы один стикер');
             return;
         }
 
-        // Собираем данные для печати
         const rows = document.querySelectorAll('#stickersTableBody tr');
         const stickers = [];
 
-        rows.forEach((row, idx) => {
+        rows.forEach(row => {
             const cb = row.querySelector('.sticker-item-cb');
             if (cb && cb.checked) {
                 const cells = row.querySelectorAll('td');
-                stickers.push({
-                    kodpod: cells[1]?.textContent || '',
-                    kod: cells[2]?.textContent || '',
-                    art: cells[3]?.textContent || ''
-                });
+                const kodpod = cells[1]?.textContent?.trim() || '';
+                const kod = cells[2]?.textContent?.trim() || '';
+                const art = cells[3]?.textContent?.trim() || '';
+                if (kodpod) {
+                    stickers.push({ kodpod, kod, art });
+                }
             }
         });
 
-        // Создаём видимый контейнер для html2pdf
-        const container = document.createElement('div');
-        container.id = 'stickers-pdf-container';
-        container.style.position = 'fixed';
-        container.style.top = '-1000px';
-        container.style.left = '0';
-        container.style.width = 'fit-content';
-        container.style.backgroundColor = '#fff';
-        container.style.display = 'flex';
-        container.style.flexDirection = 'column';
-        container.style.gap = '0';
-        container.style.padding = '0';
-        container.style.margin = '0';
-
-        stickers.forEach((item, idx) => {
-            const stickerDiv = document.createElement('div');
-            stickerDiv.style.width = '58mm';
-            stickerDiv.style.height = '40mm';
-            stickerDiv.style.padding = '2mm';
-            stickerDiv.style.boxSizing = 'border-box';
-            stickerDiv.style.pageBreakAfter = 'page';
-            stickerDiv.style.pageBreakInside = 'avoid';
-            stickerDiv.style.backgroundColor = '#fff';
-            stickerDiv.style.display = 'flex';
-            stickerDiv.style.flexDirection = 'column';
-            stickerDiv.style.alignItems = 'center';
-            stickerDiv.style.justifyContent = 'center';
-            stickerDiv.style.overflow = 'hidden';
-            stickerDiv.style.flexShrink = '0';
-
-            // QR код
-            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(item.kodpod)}`;
-
-            const img = new Image();
-            img.src = qrUrl;
-            img.style.width = '40mm';
-            img.style.height = '40mm';
-            img.style.objectFit = 'contain';
-            img.alt = '';
-            img.style.display = 'block';
-
-            const artDiv = document.createElement('div');
-            artDiv.style.fontSize = '14px';
-            artDiv.style.fontWeight = 'bold';
-            artDiv.style.marginTop = '2mm';
-            artDiv.style.textAlign = 'center';
-            artDiv.textContent = item.art;
-
-            const kodDiv = document.createElement('div');
-            kodDiv.style.fontSize = '10px';
-            kodDiv.style.color = '#666';
-            kodDiv.textContent = item.kodpod;
-
-            stickerDiv.appendChild(img);
-            stickerDiv.appendChild(artDiv);
-            stickerDiv.appendChild(kodDiv);
-            container.appendChild(stickerDiv);
-        });
-
-        // Добавляем на страницу временно
-        document.body.appendChild(container);
-
-        // Ждём загрузки всех изображений и рендеринг
-        const allImages = container.querySelectorAll('img');
-        let loadedCount = 0;
-
-        const checkAllLoaded = () => {
-            loadedCount++;
-            if (loadedCount >= allImages.length) {
-                console.log('[priyomka] Все QR загружены, генерируем PDF через jsPDF, stickers:', stickers.length);
-                document.body.removeChild(container);
-                this.generateStickerPDF(stickers);
-            }
-        };
-
-        allImages.forEach(img => {
-            if (img.complete && img.naturalHeight > 0) {
-                checkAllLoaded();
-            } else {
-                img.onload = checkAllLoaded;
-                img.onerror = checkAllLoaded;
-            }
-        });
-
-        // Таймаут - не ждём больше 5 секунд
-        setTimeout(() => {
-            try { document.body.removeChild(container); } catch(e) {}
-            this.generateStickerPDF(stickers);
-        }, 5000);
-    },
-
-    // ============================================================
-    // ГЕНЕРАЦИЯ PDF СТЕРИКЕРОВ ЧЕРЕЗ jsPDF + Canvas
-    // ============================================================
-    generateStickerPDF(stickersList) {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF({ unit: 'mm', format: [58, 40], orientation: 'landscape' });
-        let loaded = 0;
-
-        if (stickersList.length === 0) {
-            alert('⚠️ Нет стикеров для печати');
+        if (stickers.length === 0) {
+            alert('⚠️ Нет данных для печати');
             return;
         }
 
-        const processSticker = (item, pageIndex) => {
-            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(item.kodpod)}`;
+        const count = stickers.length;
+        console.log('[priyomka] Печать стикеров:', count);
 
-            fetch(qrUrl)
-                .then(r => r.blob())
-                .then(blob => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => {
-                        // Создаём canvas для рендеринга стикера с кириллицей
-                        const canvas = document.createElement('canvas');
-                        canvas.width = 600;
-                        canvas.height = 400;
-                        const ctx = canvas.getContext('2d');
+        // Показываем прогресс
+        const start = Date.now();
+        const progressInterval = setInterval(() => {
+            const elapsed = ((Date.now() - start) / 1000).toFixed(0);
+            console.log(`[priyomka] ⏳ Генерация... ${elapsed}с`);
+        }, 500);
 
-                        // Белый фон
-                        ctx.fillStyle = '#fff';
-                        ctx.fillRect(0, 0, 600, 400);
+        try {
+            const { jsPDF } = window.jspdf;
 
-                        // QR код в правом верхнем углу (отступы 2mm ≈ 20px)
-                        const qrImg = new Image();
-                        qrImg.src = reader.result;
+            // Размер PDF под профиль
+            const pdfWidth = this._currentProfile ? this._currentProfile.widthMM : 58;
+            const pdfHeight = this._currentProfile ? this._currentProfile.heightMM : 40;
+            const doc = new jsPDF({ unit: 'mm', format: [pdfWidth, pdfHeight], orientation: 'landscape' });
 
-                        qrImg.onload = () => {
-                            // QR 25mm в правом верхнем углу (отступы 2mm)
-                            // 2mm ≈ 20px, QR 25mm ≈ 250px
-                            // X = 600 - 20 - 250 = 330
-                            ctx.drawImage(qrImg, 330, 20, 250, 250);
+            // Размер canvas: под профиль
+            const scale = 3;
+            const canvasW = Math.round(pdfWidth * 3.78 * scale);
+            const canvasH = Math.round(pdfHeight * 3.78 * scale);
 
-                            // kodpod сразу под QR кодом
-                            ctx.fillStyle = '#000';
-                            ctx.font = '36px Arial, sans-serif'; // kodpod
-                            ctx.textAlign = 'center';
-                            ctx.textBaseline = 'middle';
-                            ctx.fillText(item.kodpod, 455, 300);
+            // QR размеры в пикселях
+            const qrSizeMM = 24;
+            const qrSizePx = Math.round(qrSizeMM * 3.78 * scale);
+            const qrMarginPx = Math.round(2 * 3.78 * scale);
 
-                            // "3D IDEA" слева по центру
-                            ctx.font = 'bold 48px Arial, sans-serif'; // 3D IDEA
-                            ctx.fillText('3D IDEA', 100, 200);
+            // Кэшируем Image объекты для многократного использования
+            const imgCache = new Map();
 
-                            // Артикул по низу стикера по центру
-                            ctx.font = 'bold 58px Arial, sans-serif'; // artikul
-                            ctx.fillText(item.art, 200, 350);
+            // Параллельно загружаем все QR
+            const qrPromises = stickers.map(s => this.getQRImage(s.kodpod));
+            const qrImages = await Promise.all(qrPromises);
 
-                            // Конвертируем canvas в изображение для PDF
-                            const stickerData = canvas.toDataURL('image/jpeg', 0.95);
+            // Параллельно рендерим все стикеры
+            const renderPromises = qrImages.map(async (qrImg, i) => {
+                const item = stickers[i];
 
-                            if (pageIndex > 0) doc.addPage();
-                            doc.addImage(stickerData, 'JPEG', 0, 0, 58, 40);
+                // Кэш image
+                if (imgCache.has(item.kodpod)) {
+                    return imgCache.get(item.kodpod);
+                }
 
-                            loaded++;
-                            if (loaded === stickersList.length) {
-                                doc.save(`stickers_${Date.now()}.pdf`);
-                            }
-                        };
+                return new Promise((resolve) => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = canvasW;
+                    canvas.height = canvasH;
+                    const ctx = canvas.getContext('2d');
 
-                        qrImg.onerror = () => {
-                            // Если QR не загрузился — всё равно показываем стикер
-                            if (pageIndex > 0) doc.addPage();
-                            doc.addImage(stickerData || '', 'JPEG', 0, 0, 58, 40);
-                            loaded++;
-                            if (loaded === stickersList.length) {
-                                doc.save(`stickers_${Date.now()}.pdf`);
-                            }
-                        };
-                    };
-                    reader.readAsDataURL(blob);
-                })
-                .catch(err => {
-                    console.error('[priyomka] Ошибка для', item.kodpod, err);
-                    loaded++;
-                    if (loaded === stickersList.length) {
-                        doc.save(`stickers_${Date.now()}.pdf`);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, canvasW, canvasH);
+
+                    const pxPerMM = 3.78 * scale;
+
+                    // Если есть профиль — используем его элементы
+                    if (this._currentProfile) {
+                        // Извлекаем конфигурацию QR из профиля
+                        const qrConfig = (this._currentProfile.elements || []).find(function(el) { return el.type === 'qr'; }) || { sizeMM: 24, marginMM: 2 };
+                        console.log('[priyomka] Печать стикера, qrConfig:', qrConfig);
+                        console.log('[priyomka] Печать стикера, profile:', JSON.stringify(this._currentProfile));
+
+                        // QR из изображения
+                        const qrSizePx = Math.round(qrConfig.sizeMM * pxPerMM);
+                        const qrMarginPx = Math.round(qrConfig.marginMM * pxPerMM);
+                        ctx.drawImage(qrImg, canvasW - qrSizePx - qrMarginPx, qrMarginPx, qrSizePx, qrSizePx);
+
+                        // Передаём QR-конфиг в рендер для kodpod
+                        this.renderStickerFromProfile(ctx, item, this._currentProfile, canvasW, canvasH, pxPerMM, qrConfig);
+                    } else {
+                        // Fallback: хардкод
+                        this.renderStickerFallback(ctx, item, canvasW, canvasH, scale);
                     }
+
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+                    imgCache.set(item.kodpod, dataUrl);
+                    resolve(dataUrl);
                 });
+            });
+
+            const stickerDataUrls = await Promise.all(renderPromises);
+
+            // Собираем PDF
+            for (let i = 0; i < stickerDataUrls.length; i++) {
+                if (i > 0) doc.addPage();
+                doc.addImage(stickerDataUrls[i], 'JPEG', 0, 0, pdfWidth, pdfHeight);
+            }
+
+            doc.save(`stickers_${Date.now()}.pdf`);
+            clearInterval(progressInterval);
+            console.log('[priyomka] ✅ PDF готов за', ((Date.now() - start) / 1000).toFixed(1), 'с');
+        } catch (err) {
+            clearInterval(progressInterval);
+            console.error('[priyomka] Ошибка генерации PDF:', err);
+            alert('❌ Ошибка генерации PDF: ' + err.message);
+        }
+    },
+
+    truncateStr(str, maxLen) {
+        if (!str) return '';
+        if (str.length <= maxLen) return str;
+        return str.substring(0, maxLen - 1) + '…';
+    },
+
+    // ============================================================
+    // РЕНДЕР СТИКЕРА ИЗ ПРОФИЛЯ
+    // ============================================================
+    renderStickerFromProfile(ctx, item, profile, canvasW, canvasH, pxPerMM, qrConfig) {
+        const data = {
+            kodpod: item.kodpod || '',
+            art: item.art || '',
+            kod: item.kod || ''
         };
 
-        stickersList.forEach((item, idx) => processSticker(item, idx));
+        // Если qrConfig не передан — ищем в профиле
+        if (!qrConfig) {
+            const qrEl = profile.elements.find(function(el) { return el.type === 'qr'; });
+            if (qrEl) {
+                qrConfig = { sizeMM: qrEl.sizeMM || 24, marginMM: qrEl.marginMM || 2 };
+            } else {
+                qrConfig = { sizeMM: 24, marginMM: 2 };
+            }
+        }
+
+        for (const el of (profile.elements || [])) {
+            // QR-элемент пропускаем — QR уже как картинка
+            if (el.type === 'qr') continue;
+            this.renderProfileElement(ctx, el, data, canvasW, canvasH, pxPerMM, qrConfig);
+        }
+    },
+
+    renderProfileElement(ctx, el, data, canvasW, canvasH, pxPerMM, qrConfig) {
+        const p = pxPerMM;
+        const wMM = canvasW / p;
+        const hMM = canvasH / p;
+
+        // Debug: выводим настройки каждого элемента
+        console.log('[priyomka] renderProfileElement:', el.type, el, 'wMM:', wMM, 'hMM:', hMM, 'qrConfig:', qrConfig);
+
+        switch (el.type) {
+            case 'text': {
+                const fs = Math.round(el.fontSize * p / 3.78);
+                ctx.font = 'bold ' + fs + 'px Arial, sans-serif';
+                ctx.fillStyle = '#000000';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'alphabetic';
+                const y = (el.topMM || 20) * p + fs * 0.8;
+                const x = (el.leftMM || 10) * p;
+                console.log('[priyomka]   text:', el.value, 'font:', fs, 'pos:', x, y);
+                ctx.fillText(el.value || '3D IDEA', x, y);
+                break;
+            }
+            case 'art': {
+                const val = data.art || '';
+                const fs = Math.round(el.fontSize * p / 3.78);
+                ctx.font = 'bold ' + fs + 'px Arial, sans-serif';
+                ctx.fillStyle = '#000000';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'alphabetic';
+                const mw = (el.maxWidthMM || 54) * p;
+                const ax = wMM * p / 2;
+                const ay = (hMM - (el.bottomMM || 12)) * p + fs * 0.8;
+                console.log('[priyomka]   art: fs:', fs, 'mw:', mw, 'pos:', ax, ay);
+                this.drawArtText(ctx, val, ax, ay, fs, mw, el.lineGap || 0.7);
+                break;
+            }
+            case 'kodpod': {
+                const val = data[el.dataField] || data.kodpod || '';
+                const fs = Math.round(el.fontSize * p / 3.78);
+                ctx.font = 'bold ' + fs + 'px Arial, sans-serif';
+                ctx.fillStyle = '#000000';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'alphabetic';
+                // Координаты относительно левого верхнего угла стикера
+                const x = (el.leftMM != null ? el.leftMM : 10) * p;
+                const y = (el.topMM != null ? el.topMM : 30) * p + fs * 0.8;
+                console.log('[priyomka]   kodpod: fs:', fs, 'pos:', x, y, 'val:', val);
+                ctx.fillText(val, x, y);
+                break;
+            }
+        }
+    },
+
+    drawArtText(ctx, art, x, y, fontSize, maxWidth, lineGap) {
+        const words = (art || '').split(/\s+/).filter(function(w) { return w; });
+        if (ctx.measureText(art).width <= maxWidth) { ctx.fillText(art, x, y); return; }
+        let l1 = words[0], l2 = '';
+        for (let i = 1; i < words.length; i++) {
+            const t = l1 + ' ' + words[i];
+            if (ctx.measureText(t).width <= maxWidth) l1 = t; else { l2 = words.slice(i).join(' '); break; }
+        }
+        const gap = fontSize * (lineGap || 0.5);
+        ctx.fillText(l1, x, y - gap);
+        if (l2) ctx.fillText(l2, x, y + gap);
+    },
+
+    renderStickerFallback(ctx, item, canvasW, canvasH, scale) {
+        const pxPerMM = 3.78 * scale;
+        const p = pxPerMM;
+        const wMM = canvasW / p;
+        const hMM = canvasH / p;
+
+        const kodpodFontSize = Math.round(11 * scale);
+        const brandFontSize = Math.round(18 * scale);
+        const artFontSizePx = Math.round(20 * scale);
+        const artLineGap = Math.round(artFontSizePx * 0.7);
+        const artMaxWidth = Math.round(54 * pxPerMM);
+
+        const qrSizePx = Math.round(24 * pxPerMM);
+        const qrMarginPx = Math.round(2 * pxPerMM);
+        const kodpodX = canvasW - qrSizePx - qrMarginPx + qrSizePx / 2;
+        const kodpodY = qrSizePx + Math.round(3 * pxPerMM);
+        const brandX = Math.round(10 * pxPerMM);
+        const brandY = canvasH / 2;
+        const artX = canvasW / 2;
+        const artY = canvasH - Math.round(12 * pxPerMM);
+
+        ctx.fillStyle = '#000000';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = `bold ${kodpodFontSize}px Arial, sans-serif`;
+        ctx.fillText(this.truncateStr(item.kodpod, 10), kodpodX, kodpodY);
+        ctx.font = `bold ${brandFontSize}px Arial, sans-serif`;
+        ctx.fillText('3D IDEA', brandX, brandY);
+        this.splitArtByWidth(ctx, item.art, artX, artY, artFontSizePx, artMaxWidth, artLineGap);
+    },
+
+    splitArtByWidth(ctx, art, x, y, fontSize, maxWidth, lineGap) {
+        if (!art) return 0;
+
+        ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+        const words = art.split(/\s+/).filter(w => w);
+
+        // Пробуем одну строку
+        if (ctx.measureText(art).width <= maxWidth) {
+            ctx.fillText(art, x, y);
+            return 1;
+        }
+
+        // Две строки — сначала слова в первую, потом во вторую
+        let line1 = words[0];
+        let line2 = '';
+
+        for (let i = 1; i < words.length; i++) {
+            const testLine1 = line1 + ' ' + words[i];
+            if (ctx.measureText(testLine1).width <= maxWidth) {
+                line1 = testLine1;
+            } else {
+                // Остальное во вторую строку
+                line2 = words.slice(i).join(' ');
+                break;
+            }
+        }
+
+        // Рисуем
+        ctx.fillText(line1, x, y - lineGap);
+        if (line2) {
+            ctx.fillText(line2, x, y + lineGap);
+        }
+
+        return 2;
     },
 
     // ============================================================
@@ -1156,13 +1384,13 @@ const PRIYOMKA = {
         // Загрузка основных данных (если нужно)
     },
 
-    async query(sql) {
-        console.log('[priyomka.query] SQL:', sql);
+    async query(sql, timeoutMs = 10000) {
+        console.log('[priyomka.query] SQL:', sql.substring(0, 200) + (sql.length > 200 ? '...' : ''));
         const encodedSql = encodeURIComponent(sql.trim());
         const url = `http://${this.serverIp}:8080/query?sql=${encodedSql}`;
         console.log('[priyomka.query] URL:', url);
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
         try {
             const response = await fetch(url, {
@@ -1172,9 +1400,10 @@ const PRIYOMKA = {
             });
             clearTimeout(timeoutId);
             const text = await response.text();
-            console.log('[priyomka.query] Status:', response.status, 'Response:', text);
+            console.log('[priyomka.query] Status:', response.status, 'Response:', text.substring(0, 100));
             if (!response.ok) {
                 console.error('[priyomka.query] ❌ HTTP error:', response.status, text);
+                throw new Error(text); // Бросаем ошибку, чтобы код продолжения знал, что запрос не удался
             }
             return text;
         } catch (error) {

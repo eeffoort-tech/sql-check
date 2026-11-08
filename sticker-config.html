@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Конфигуратор стикеров</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="warehouse.css">
+    <link rel="stylesheet" href="sticker-config.css">
+</head>
+<body>
+    <div class="container guide-container">
+        <header class="editor-header">
+            <div class="header-top">
+                <h1>🏷️ Конфигуратор стикеров</h1>
+                <div class="user-info">
+                    <button id="backBtn" class="btn btn-ghost btn-small">← Назад</button>
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <!-- Выбор шаблона и профиля -->
+            <div class="top-bar">
+                <div class="top-bar-left">
+                    <label>Шаблон:</label>
+                    <select id="templateSelect">
+                        <option value="default_58x40">Стикер 58×40 — стандарт</option>
+                        <option value="wide_62x30">Стикер 62×30 — узкий</option>
+                        <option value="tall_40x55">Стикер 40×55 — высокий</option>
+                        <option value="minimal_58x25">Стикер 58×25 — минимальный</option>
+                    </select>
+                </div>
+                <div class="top-bar-right">
+                    <select id="profileSelect">
+                        <option value="">— Новый профиль —</option>
+                    </select>
+                    <button id="loadProfileBtn" class="btn btn-ghost btn-small" disabled>Загрузить</button>
+                    <button id="saveProfileBtn" class="btn btn-primary btn-small">💾 Сохранить</button>
+                    <button id="deleteProfileBtn" class="btn btn-danger btn-small" disabled>🗑️ Удалить</button>
+                    <button id="exportProfileBtn" class="btn btn-ghost btn-small">📤 Экспорт</button>
+                </div>
+            </div>
+
+            <!-- Основная зона -->
+            <div class="config-layout">
+                <!-- Настройки элементов -->
+                <div class="props-panel">
+                    <div class="panel-header"><h3>Элементы</h3></div>
+                    <div class="props-content">
+
+                        <!-- QR -->
+                        <div class="props-section" id="secQr">
+                            <label class="section-toggle">
+                                <input type="checkbox" id="cbShowQR" checked>
+                                QR-код
+                            </label>
+                            <div class="props-fields">
+                                <div class="prop-group">
+                                    <label>Источник данных</label>
+                                    <select id="selQrField"><option value="kodpod">kodpod</option><option value="kod">kod</option><option value="doknom">doknom</option></select>
+                                </div>
+                                <div class="prop-row">
+                                    <div class="prop-group"><label>Размер, мм</label><input type="number" id="numQrSize" value="24" min="10" max="50"></div>
+                                    <div class="prop-group"><label>Отступ, мм</label><input type="number" id="numQrMargin" value="2" min="0" max="20"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Текст -->
+                        <div class="props-section" id="secText">
+                            <label class="section-toggle">
+                                <input type="checkbox" id="cbShowText" checked>
+                                Бренд / текст
+                            </label>
+                            <div class="props-fields">
+                                <div class="prop-group"><label>Текст</label><input type="text" id="txtTextValue" value="3D IDEA"></div>
+                                <div class="prop-row">
+                                    <div class="prop-group"><label>Шрифт</label><input type="number" id="numTextSize" value="18" min="6" max="72"></div>
+                                </div>
+                                <div class="prop-row">
+                                    <div class="prop-group"><label>X (мм)</label><input type="number" id="numTextLeft" value="10" min="0"></div>
+                                    <div class="prop-group"><label>Y (мм)</label><input type="number" id="numTextTop" value="20" min="0"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Артикул -->
+                        <div class="props-section" id="secArt">
+                            <label class="section-toggle">
+                                <input type="checkbox" id="cbShowArt" checked>
+                                Артикул
+                            </label>
+                            <div class="props-fields">
+                                <div class="prop-row">
+                                    <div class="prop-group"><label>Шрифт</label><input type="number" id="numArtSize" value="20" min="6" max="48"></div>
+                                    <div class="prop-group"><label>Ширина, мм</label><input type="number" id="numArtWidth" value="54" min="20" max="56"></div>
+                                </div>
+                                <div class="prop-row">
+                                    <div class="prop-group"><label>Отступ от низа, мм</label><input type="number" id="numArtBottom" value="12" min="2" max="30"></div>
+                                </div>
+                                <label><input type="checkbox" id="cbArtMulti" checked> Многострочный</label>
+                                <div class="prop-group"><label>Интервал строк</label><input type="number" id="numArtGap" value="0.7" min="0.3" max="1.5" step="0.1"></div>
+                            </div>
+                        </div>
+
+                        <!-- Kodpod -->
+                        <div class="props-section" id="secKodpod">
+                            <label class="section-toggle">
+                                <input type="checkbox" id="cbShowKodpod" checked>
+                                Kodpod
+                            </label>
+                            <div class="props-fields">
+                                <div class="prop-group">
+                                    <label>Источник</label>
+                                    <select id="selKodpodField"><option value="kodpod">kodpod</option><option value="kod">kod</option></select>
+                                </div>
+                                <div class="prop-row">
+                                    <div class="prop-group"><label>Шрифт</label><input type="number" id="numKodpodSize" value="11" min="6" max="36"></div>
+                                </div>
+                                <div class="prop-row">
+                                    <div class="prop-group"><label>X (мм)</label><input type="number" id="numKodpodLeft" value="10" min="0"></div>
+                                    <div class="prop-group"><label>Y (мм)</label><input type="number" id="numKodpodTop" value="30" min="0"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Превью -->
+                <div class="preview-panel">
+                    <div class="preview-canvas-wrapper">
+                        <canvas id="stickerPreview"></canvas>
+                    </div>
+                    <div class="preview-data">
+                        <div class="preview-data-label">Данные предпросмотра:</div>
+                        <div class="preview-data-fields">
+                            <div class="prop-group"><label>kodpod</label><input type="text" id="previewKodpod" value="123456"></div>
+                            <div class="prop-group"><label>Артикул</label><input type="text" id="previewArt" value="ABC-DEF-12345"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Размеры -->
+                <div class="size-panel">
+                    <div class="panel-header"><h3>Размер этикетки</h3></div>
+                    <div class="props-content">
+                        <div class="prop-row">
+                            <div class="prop-group"><label>Ширина, мм</label><input type="number" id="widthMM" value="58" min="30" max="100"></div>
+                            <div class="prop-group"><label>Высота, мм</label><input type="number" id="heightMM" value="40" min="20" max="100"></div>
+                        </div>
+                        <p class="size-hint">Установите размер для соответствия вашим этикеткам</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Модалка сохранения -->
+    <div id="saveModal" class="priyomka-modal" style="display:none;">
+        <div class="priyomka-modal-overlay"></div>
+        <div class="priyomka-modal-content" style="max-width:500px;">
+            <div class="priyomka-modal-header">
+                <h3>Сохранить профиль</h3>
+                <button class="btn-modal-close" id="closeSaveModal">×</button>
+            </div>
+            <div class="priyomka-modal-body">
+                <div class="form-group">
+                    <label>Название профиля</label>
+                    <input type="text" id="profileName" placeholder="Стикер 58x40">
+                </div>
+                <label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer;">
+                    <input type="checkbox" id="profileDefault"> Сделать профилем по умолчанию
+                </label>
+            </div>
+            <div class="priyomka-modal-footer">
+                <button id="confirmSaveProfileBtn" class="btn btn-primary">Сохранить</button>
+                <button id="cancelSaveProfileBtn" class="btn btn-ghost">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="sticker-config.js"></script>
+</body>
+</html>

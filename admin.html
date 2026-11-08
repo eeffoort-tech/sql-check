@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Администратор</title>
+    <title>Панель администратора</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="admin.css">
 </head>
@@ -55,6 +55,12 @@
                         <div class="admin-btn-desc">Оформление приёмки товаров</div>
                     </button>
 
+                    <button class="admin-btn" id="goToStickerConfigBtn">
+                        <div class="admin-btn-icon">🏷️</div>
+                        <div class="admin-btn-title">Стикеры</div>
+                        <div class="admin-btn-desc">Конфигуратор этикеток</div>
+                    </button>
+
                     <button class="admin-btn" id="goToEmployeesBtn">
                         <div class="admin-btn-icon">👤</div>
                         <div class="admin-btn-title">Сотрудники</div>
@@ -73,10 +79,22 @@
                         <div class="admin-btn-desc">Общие справочники</div>
                     </button>
 
+                    <button id="goToShipmentBtn" class="admin-btn">
+                        <div class="admin-btn-icon">📦</div>
+                        <div class="admin-btn-title">Отгрузка</div>
+                        <div class="admin-btn-desc">Оформление отгрузки заказов</div>
+                    </button>
+
                     <button id="goToReportsBtn" class="admin-btn">
                         <div class="admin-btn-icon">📊</div>
                         <div class="admin-btn-title">Отчёты</div>
                         <div class="admin-btn-desc">Статистика и отчёты</div>
+                    </button>
+
+                    <button id="goToInventoryBtn" class="admin-btn">
+                        <div class="admin-btn-icon">📦</div>
+                        <div class="admin-btn-title">Инвентаризация</div>
+                        <div class="admin-btn-desc">Сверка товаров по кодам</div>
                     </button>
 
                     <button id="logoutBtn" class="admin-btn admin-btn-danger">
@@ -94,6 +112,7 @@
         </main>
     </div>
 
+    <script src="auth.js"></script>
     <script src="admin.js"></script>
 </body>
 </html>

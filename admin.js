@@ -4,12 +4,91 @@
 
 const ADMIN = {
     // ============================================================
+    // КАРТА КНОПОК: название -> страница
+    // ============================================================
+    buttonMap: {
+        'База данных': 'sql-editor.html',
+        'Клиенты': 'employees.html',
+        'Товары': 'column-config.html',
+        'Склад': 'warehouse.html',
+        'Приёмка': 'priyomka.html',
+        'Стикеры': 'column-config.html',
+        'Сотрудники': 'employees.html',
+        'Моя зарплата': 'my-salary.html',
+        'Справочник': 'guide-add.html',
+        'Отгрузка': 'shipment.html',
+        'Отчёты': 'sdelano.html',
+        'Инвентаризация': 'inventory.html',
+        'Админ': 'admin.html',
+    },
+
+    // ============================================================
     // ИНИЦИАЛИЗАЦИЯ
     // ============================================================
     init() {
         this.checkAuth();
+        this.filterButtons();
         this.bindEvents();
         this.displayUserInfo();
+        this.highlightFirstAllowed();
+    },
+
+    // ============================================================
+    // ФИЛЬТРАЦИЯ КНОПОК ПО ДОСТУПУ
+    // ============================================================
+    filterButtons() {
+        const grid = document.querySelector('.actions-grid');
+        if (!grid) return;
+
+        const userAccess = window.getUserAccess?.() || [];
+        const buttons = grid.querySelectorAll('.admin-btn');
+
+        buttons.forEach(btn => {
+            const titleEl = btn.querySelector('.admin-btn-title');
+            if (!titleEl) return;
+
+            const key = titleEl.textContent.trim();
+            const allowed = userAccess.includes('*') || userAccess.includes(key);
+
+            if (!allowed) {
+                btn.style.display = 'none';
+            } else {
+                // Сохраняем оригинальное поведение
+                const originalDisplay = getComputedStyle(btn).display;
+                btn.style.display = '';
+            }
+        });
+    },
+
+    // ============================================================
+    // ПОДСВЕТКА ПЕРВОЙ ДОСТУПНОЙ КНОПКИ
+    // ============================================================
+    highlightFirstAllowed() {
+        const grid = document.querySelector('.actions-grid');
+        if (!grid) return;
+
+        const userAccess = window.getUserAccess?.() || [];
+        const buttons = grid.querySelectorAll('.admin-btn');
+        let firstFound = false;
+
+        buttons.forEach(btn => {
+            if (firstFound) {
+                btn.style.display = '';
+                return;
+            }
+
+            const titleEl = btn.querySelector('.admin-btn-title');
+            if (!titleEl) return;
+
+            const key = titleEl.textContent.trim();
+            const allowed = userAccess.includes('*') || userAccess.includes(key);
+
+            if (!allowed) {
+                btn.style.display = 'none';
+            } else {
+                firstFound = true;
+            }
+        });
     },
 
     // ============================================================
@@ -20,7 +99,6 @@ const ADMIN = {
         const userId = localStorage.getItem('userId');
 
         if (!serverIp || !userId) {
-            // Пользователь не авторизован - перенаправляем на страницу входа
             window.location.href = 'login.html';
             return;
         }
@@ -75,49 +153,32 @@ const ADMIN = {
     // СОБЫТИЯ
     // ============================================================
     bindEvents() {
-        // Переход к базе данных (все таблицы)
-        document.getElementById('goToDatabaseBtn').addEventListener('click', () => {
-            this.goToTables();
-        });
+        // Навигация по кнопкам с проверкой доступа
+        const buttonActions = {
+            'goToDatabaseBtn': 'База данных',
+            'goToClientsBtn': 'Клиенты',
+            'goToProductsBtn': 'Товары',
+            'goToWarehouseBtn': 'Склад',
+            'goToPriyomkaBtn': 'Приёмка',
+            'goToStickerConfigBtn': 'Стикеры',
+            'goToEmployeesBtn': 'Сотрудники',
+            'goToSalaryBtn': 'Моя зарплата',
+            'goToReferenceBtn': 'Справочник',
+            'goToShipmentBtn': 'Отгрузка',
+            'goToReportsBtn': 'Отчёты',
+            'goToInventoryBtn': 'Инвентаризация',
+        };
 
-        // Переход к клиентам
-        document.getElementById('goToClientsBtn').addEventListener('click', () => {
-            this.goToTable('clients');
-        });
-
-        // Переход к товарам
-        document.getElementById('goToProductsBtn').addEventListener('click', () => {
-            this.goToTable('products');
-        });
-
-        // Переход к складу
-        document.getElementById('goToWarehouseBtn').addEventListener('click', () => {
-            window.location.href = 'warehouse.html';
-        });
-
-        // Переход к приёмке
-        document.getElementById('goToPriyomkaBtn').addEventListener('click', () => {
-            window.location.href = 'priyomka.html';
-        });
-
-        // Переход к сотрудникам
-        document.getElementById('goToEmployeesBtn').addEventListener('click', () => {
-            this.goToTable('sotrud');
-        });
-
-        // Переход к зарплате
-        document.getElementById('goToSalaryBtn').addEventListener('click', () => {
-            this.goToTable('salary');
-        });
-
-        // Переход к справочнику
-        document.getElementById('goToReferenceBtn').addEventListener('click', () => {
-            window.location.href = 'guide.html';
-        });
-
-        // Переход к отчётам
-        document.getElementById('goToReportsBtn').addEventListener('click', () => {
-            alert('Раздел отчётов в разработке');
+        Object.entries(buttonActions).forEach(([btnId, key]) => {
+            const btn = document.getElementById(btnId);
+            if (btn) {
+                btn.addEventListener('click', () => {
+                    const page = this.buttonMap[key];
+                    if (page) {
+                        window.location.href = page;
+                    }
+                });
+            }
         });
 
         // Выход из системы
@@ -125,26 +186,11 @@ const ADMIN = {
             if (confirm('Вы действительно хотите выйти?')) {
                 localStorage.removeItem('serverIp');
                 localStorage.removeItem('userId');
+                localStorage.removeItem('userAccess');
+                localStorage.removeItem('userFio');
                 window.location.href = 'login.html';
             }
         });
-    },
-
-    // ============================================================
-    // НАВИГАЦИЯ
-    // ============================================================
-    goToTables() {
-        const serverIp = localStorage.getItem('serverIp');
-        if (serverIp) {
-            window.location.href = `sql-editor.html?ip=${serverIp}`;
-        }
-    },
-
-    goToTable(tableName) {
-        const serverIp = localStorage.getItem('serverIp');
-        if (serverIp) {
-            window.location.href = `sql-editor.html?ip=${serverIp}&table=${tableName}`;
-        }
     }
 };
 

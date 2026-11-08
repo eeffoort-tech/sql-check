@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Сотрудники</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="employees.css">
+</head>
+<body>
+    <div class="container">
+        <header class="employees-header">
+            <div class="header-top">
+                <h1>👤 Сотрудники</h1>
+                <button id="backBtn" class="btn btn-ghost btn-small">← Назад</button>
+            </div>
+            <div class="server-info">
+                <span class="server-label">Сервер:</span>
+                <span id="serverIp" class="server-ip">???</span>
+                <button id="refreshBtn" class="btn btn-secondary btn-tiny">🔄 Обновить</button>
+            </div>
+        </header>
+
+        <main>
+            <!-- Статистика -->
+            <div class="employees-stats" id="employeesStats">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalCount">0</div>
+                    <div class="stat-label">Всего</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="activeCount">0</div>
+                    <div class="stat-label">Активные</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="inactiveCount">0</div>
+                    <div class="stat-label">Неактивные</div>
+                </div>
+            </div>
+
+            <!-- Кнопки действий -->
+            <div class="main-actions">
+                <button id="addEmployeeBtn" class="btn btn-primary btn-add-fab">+ Добавить сотрудника</button>
+                <button id="openFinanceBtn" class="btn btn-finance btn-add-fab btn-finance-fab">💰 Финансы</button>
+            </div>
+
+            <!-- Поиск -->
+            <div class="search-container">
+                <input type="text" id="searchInput" placeholder="Поиск по сотрудникам...">
+            </div>
+
+            <!-- Таблица сотрудников -->
+            <div class="table-container" id="employeesTableContainer">
+                <div class="loading-message">Загрузка сотрудников...</div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Модальное окно карточки сотрудника -->
+    <div id="employeeCardModal" class="modal" style="display: none;">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3 id="cardModalTitle">Карточка сотрудника</h3>
+                <button id="closeCardModal" class="btn btn-ghost btn-tiny">×</button>
+            </div>
+            <div class="employee-card">
+                <!-- Фото и основная информация -->
+                <div class="card-header-section">
+                    <div class="employee-photo-wrapper">
+                        <img id="employeePhoto" src="" alt="Фото" class="employee-photo" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <div class="employee-photo-placeholder">
+                            <span id="photoInitials">?</span>
+                        </div>
+                    </div>
+                    <div class="card-info-header">
+                        <h2 id="cardFio" class="card-name">---</h2>
+                        <div class="card-status-badges">
+                            <span id="cardStatus" class="status-badge">---</span>
+                            <span id="cardAccess" class="access-badge">---</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Разделитель -->
+                <div class="card-divider"></div>
+
+                <!-- Поля сотрудника -->
+                <div class="card-fields-grid" id="cardFields">
+                    <!-- Динамические поля -->
+                </div>
+
+                <!-- Кнопки управления -->
+                <div class="card-actions">
+                    <button id="unlockEditBtn" class="btn btn-warning">
+                        🔓 Разблокировать для редактирования
+                    </button>
+                    <button id="saveEditBtn" class="btn btn-success" style="display: none;">
+                        💾 Сохранить изменения
+                    </button>
+                    <button id="cancelEditBtn" class="btn btn-ghost" style="display: none;">
+                        Отмена
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно добавления сотрудника -->
+    <div id="addEmployeeModal" class="modal" style="display: none;">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3>Добавить сотрудника</h3>
+                <button id="closeAddModal" class="btn btn-ghost finance-close">×</button>
+            </div>
+            <form id="addEmployeeForm">
+                <div class="add-employee-body">
+                    <div class="card-fields-grid" id="addEmployeeFields">
+                        <!-- Динамические поля -->
+                    </div>
+                </div>
+                <div class="add-employee-footer">
+                    <button type="submit" class="btn btn-primary add-employee-btn">✅ Добавить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модальное окно финансов -->
+    <div id="financeModal" class="modal" style="display: none;">
+        <div class="modal-content finance-modal-content">
+            <div class="modal-header">
+                <h3>💰 Финансы</h3>
+                <button id="closeFinanceModal" class="btn btn-ghost finance-close">×</button>
+            </div>
+            <form id="financeForm">
+                <div class="finance-body">
+                    <div class="finance-field">
+                        <label class="finance-label">Сотрудник *</label>
+                        <select id="financeEmployee" class="finance-select">
+                            <option value="">-- Выберите сотрудника --</option>
+                        </select>
+                        <input type="text" id="financeEmployeeSearch" class="finance-input finance-search-input" placeholder="Поиск по имени...">
+                    </div>
+
+                    <div class="finance-field">
+                        <label class="finance-label">Тип операции *</label>
+                        <select id="financeType" class="finance-select">
+                            <option value="">-- Выберите тип --</option>
+                            <option value="pay">Зарплата</option>
+                            <option value="doppay">Премия</option>
+                            <option value="straf">Штраф</option>
+                        </select>
+                    </div>
+
+                    <div class="finance-field">
+                        <label class="finance-label">Сумма</label>
+                        <input type="number" id="financeSum" class="finance-input" placeholder="Введите сумму" step="0.01">
+                    </div>
+
+                    <div class="finance-field">
+                        <label class="finance-label">Комментарий</label>
+                        <textarea id="financeKomm" class="finance-textarea" placeholder="Комментарий..." rows="3" disabled></textarea>
+                    </div>
+                </div>
+
+                <div class="finance-footer">
+                    <button type="submit" class="btn btn-primary finance-btn">✓ ОК</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="auth.js"></script>
+    <script src="employees.js"></script>
+</body>
+</html>

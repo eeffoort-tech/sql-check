@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Моя зарплата</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="my-salary.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>💰 Моя зарплата</h1>
+            <p class="subtitle" style="color:#a0a0c0; margin-top:4px;">👤 <span id="currentEmployeeName">Загрузка...</span></p>
+        </header>
+
+        <!-- Панель управления -->
+        <div class="salary-controls">
+            <div class="controls-row">
+                <div class="control-group">
+                    <label>Сотрудник</label>
+                    <select id="employeeSelect">
+                        <option value="">Загрузка...</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Месяц</label>
+                    <div class="custom-month-picker">
+                        <div class="month-picker-display" id="monthPickerDisplay">
+                            <span class="month-picker-icon">📅</span>
+                            <span class="month-picker-value" id="monthPickerValue">Загрузка...</span>
+                            <span class="month-picker-arrow">▼</span>
+                        </div>
+                        <div class="month-picker-dropdown" id="monthPickerDropdown" style="display:none;">
+                            <div class="month-picker-years" id="monthPickerYears"></div>
+                            <div class="month-picker-grid-months" id="monthPickerGridMonths"></div>
+                        </div>
+                    </div>
+                </div>
+                <button id="refreshBtn" class="btn btn-secondary">🔄 Обновить</button>
+                <button id="backBtn" class="btn btn-ghost">← Назад</button>
+            </div>
+        </div>
+
+        <!-- Шапка со сводкой -->
+        <div class="salary-summary">
+            <div class="summary-card">
+                <div class="summary-label">Заработано за месяц</div>
+                <div class="summary-value" id="monthEarned">0 ₽</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-label">Долг</div>
+                <div class="summary-value" id="totalDebt">0 ₽</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-label">Прогноз на сегодня</div>
+                <div class="summary-value" id="todayForecast">—</div>
+            </div>
+        </div>
+
+        <!-- Таблица зарплаты -->
+        <div class="salary-table-wrapper">
+            <table class="salary-table" id="salaryTable">
+                <thead>
+                    <tr>
+                        <th>Дата</th>
+                        <th>Заработано</th>
+                        <th>Доплата</th>
+                        <th>Удержания</th>
+                        <th>Выплаты</th>
+                    </tr>
+                </thead>
+                <tbody id="salaryTableBody">
+                    <tr class="empty-row">
+                        <td colspan="5">Выберите сотрудника и месяц</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Модальное окно с детальной информацией -->
+    <div id="salaryModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Подробности</h2>
+                <button class="modal-close" id="modalCloseBtn">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-info">
+                    <div class="info-row">
+                        <span class="info-label">Ставка:</span>
+                        <span class="info-value" id="modalStavka">—</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Время работы:</span>
+                        <span class="info-value" id="modalTime">—</span>
+                    </div>
+                </div>
+
+                <h3>Артикулы</h3>
+                <table class="modal-articles-table" id="modalArticlesTable">
+                    <thead>
+                        <tr>
+                            <th>Артикул</th>
+                            <th>Количество</th>
+                            <th>Сумма</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modalArticlesBody">
+                    </tbody>
+                </table>
+
+                <h3>Финансы</h3>
+                <div class="finance-summary-block" id="modalFinanceBlock">
+                    <div class="finance-summary">
+                        <div class="finance-item finance-pay" id="modalFinancePay">
+                            <span class="finance-item-label">Выплаты:</span>
+                            <span class="finance-item-value" id="modalPayValue">—</span>
+                        </div>
+                        <div class="finance-item finance-doppay" id="modalFinanceDoppay">
+                            <span class="finance-item-label">Доплаты:</span>
+                            <div class="finance-item-content">
+                                <span class="finance-item-value" id="modalDoppayValue">—</span>
+                                <span class="finance-item-comment" id="modalDoppayComment" style="display:none;" title=""></span>
+                            </div>
+                        </div>
+                        <div class="finance-item finance-straf" id="modalFinanceStraf">
+                            <span class="finance-item-label">Штрафы:</span>
+                            <div class="finance-item-content">
+                                <span class="finance-item-value" id="modalStrafValue">—</span>
+                                <span class="finance-item-comment" id="modalStrafComment" style="display:none;" title=""></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="modalCloseBtnBottom" class="btn btn-secondary">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="auth.js"></script>
+    <script src="my-salary.js"></script>
+</body>
+</html>

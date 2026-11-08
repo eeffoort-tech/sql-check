@@ -1,0 +1,189 @@
+/* ============================================================
+   honest-shipment.css — Стили для интеграции с Честным знаком
+   ============================================================ */
+
+.honest-shipment-section {
+    background: rgba(108, 99, 255, 0.05);
+    border: 1px solid rgba(108, 99, 255, 0.2);
+    border-radius: 12px;
+    padding: 20px;
+    margin: 20px 0;
+}
+
+.honest-shipment-section h3 {
+    margin: 0 0 16px 0;
+    color: #6c63ff;
+    font-size: 1.1rem;
+}
+
+/* Формы */
+.honest-shipment-section .form-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.honest-shipment-section .form-row label {
+    min-width: 180px;
+    font-size: 0.9rem;
+    color: #a0a0c0;
+}
+
+.honest-shipment-section input,
+.honest-shipment-section select {
+    flex: 1;
+    min-width: 200px;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(108, 99, 255, 0.3);
+    border-radius: 6px;
+    color: #e0e0e0;
+    font-size: 0.9rem;
+}
+
+.honest-shipment-section input:focus,
+.honest-shipment-section select:focus {
+    outline: none;
+    border-color: #6c63ff;
+    box-shadow: 0 0 0 2px rgba(108, 99, 255, 0.2);
+}
+
+/* Кнопки */
+.honest-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+}
+
+.honest-actions .btn {
+    min-width: 200px;
+}
+
+.honest-actions .btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* Прогресс */
+.honest-progress {
+    margin-top: 16px;
+}
+
+.progress-bar {
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 3px;
+    transition: width 0.5s ease, background 0.3s ease;
+}
+
+#honestProgressText {
+    margin-top: 8px;
+    font-size: 0.85rem;
+    color: #a0a0c0;
+}
+
+/* Результат */
+.honest-result {
+    margin-top: 16px;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    border: 1px solid rgba(108, 99, 255, 0.15);
+}
+
+.honest-result h4 {
+    margin: 0 0 12px 0;
+    color: #6c63ff;
+}
+
+.result-summary p {
+    margin: 4px 0;
+    font-size: 0.9rem;
+    color: #e0e0e0;
+}
+
+.result-summary strong {
+    color: #a0a0c0;
+}
+
+.result-errors {
+    margin-top: 12px;
+    padding: 12px;
+    background: rgba(231, 76, 60, 0.1);
+    border-radius: 6px;
+    color: #e74c3c;
+    font-size: 0.85rem;
+}
+
+.result-errors ul {
+    margin: 8px 0 0 0;
+    padding-left: 20px;
+}
+
+/* ============================================================
+   СТИЛИ ДЛЯ ПЕЧАТИ СТИКЕРОВ
+   ============================================================ */
+@media print {
+    body * {
+        visibility: hidden;
+    }
+    
+    .print-container,
+    .print-container * {
+        visibility: visible;
+    }
+    
+    .print-container {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+    }
+    
+    .print-label {
+        border: 1px dashed #ccc !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+    
+    .no-print {
+        display: none !important;
+    }
+}
+
+/* ============================================================
+   АДАПТИВНОСТЬ
+   ============================================================ */
+@media (max-width: 768px) {
+    .honest-shipment-section .form-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .honest-shipment-section .form-row label {
+        min-width: auto;
+    }
+    
+    .honest-shipment-section input,
+    .honest-shipment-section select {
+        width: 100%;
+    }
+    
+    .honest-actions {
+        flex-direction: column;
+    }
+    
+    .honest-actions .btn {
+        width: 100%;
+    }
+}

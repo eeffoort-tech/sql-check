@@ -37,7 +37,7 @@ const MASS_UPLOAD = {
     // ============================================================
     bindEvents() {
         document.getElementById('backBtn').addEventListener('click', () => {
-            window.location.href = 'warehouse.html';
+            window.history.back();
         });
 
         // Разрешить конфликт

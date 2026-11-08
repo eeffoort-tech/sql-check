@@ -57,7 +57,7 @@
                 </div>
 
                 <div id="documentsListWrapper" style="display:none;">
-                    <h4 style="margin-bottom:8px;">Документы за <span id="selectedDateLabel"></span>:</h4>
+                    <h4 style="margin-bottom:8px;">Заказы за <span id="selectedDateLabel"></span>:</h4>
                     <div class="accept-results-table-wrapper" style="max-height:400px;">
                         <table class="accept-results-table">
                             <thead>
@@ -74,7 +74,7 @@
                     </div>
                 </div>
 
-                <div id="documentsEmptyMsg" style="text-align:center;padding:20px;color:#a0a0c0;display:none;">Нет документов за выбранную дату</div>
+                <div id="documentsEmptyMsg" style="text-align:center;padding:20px;color:#a0a0c0;display:none;">Нет заказов за выбранную дату</div>
             </div>
             <div class="priyomka-modal-footer">
                 <button id="closeLoadModal" class="btn btn-ghost">Закрыть</button>
@@ -117,6 +117,24 @@
             <div class="priyomka-modal-footer">
                 <button id="printStickersConfirmBtn" class="btn btn-primary">🖨️ Распечатать</button>
                 <button id="closeStickersModal" class="btn btn-ghost">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно подтверждения печати -->
+    <div id="printConfirmModal" class="priyomka-modal" style="display: none;">
+        <div class="priyomka-modal-overlay"></div>
+        <div class="priyomka-modal-content" style="max-width: 400px;">
+            <div class="priyomka-modal-header">
+                <h3>🖨️ Печать</h3>
+                <button class="btn-modal-close">×</button>
+            </div>
+            <div class="priyomka-modal-body" style="text-align:center; padding:20px 0;">
+                <p style="font-size:1.1rem; color:#d0d0e0;">Распечатать стикеры?</p>
+            </div>
+            <div class="priyomka-modal-footer" style="justify-content: center; gap:12px;">
+                <button id="printYesBtn" class="btn btn-primary">Да</button>
+                <button id="printNoBtn" class="btn btn-ghost">Нет</button>
             </div>
         </div>
     </div>

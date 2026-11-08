@@ -25,7 +25,7 @@ const COLUMN_CONFIG = {
     // ============================================================
     bindEvents() {
         document.getElementById('backBtn').addEventListener('click', () => {
-            window.location.href = 'admin.html';
+            window.history.back();
         });
 
         document.getElementById('addProfileBtn').addEventListener('click', () => {

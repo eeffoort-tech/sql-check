@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Отгрузка</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="shipment.css">
+</head>
+<body>
+    <div class="container">
+        <header class="shipment-header">
+            <h1>📦 Отгрузка</h1>
+            <button id="backBtn" class="btn btn-ghost btn-small">← Назад</button>
+        </header>
+
+        <main>
+            <!-- Поиск по номеру документа -->
+            <div class="shipment-search-section">
+                <div class="search-card">
+                    <label for="docSearchInput">Номер документа</label>
+                    <div class="search-input-group">
+                        <input
+                            type="text"
+                            id="docSearchInput"
+                            placeholder="Введите номер заказа"
+                            autocomplete="off"
+                        >
+                        <button id="loadBtn" class="btn btn-primary">
+                            <span class="btn-icon">📥</span> Загрузить
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Панель действий -->
+            <div class="shipment-actions-section">
+                <div class="actions-card">
+                    <button id="shipBtn" class="action-btn" disabled>
+                        <span class="action-btn-icon">📤</span>
+                        <span class="action-btn-title">Отгрузить</span>
+                    </button>
+                    <button id="startBtn" class="action-btn" disabled>
+                        <span class="action-btn-icon">▶️</span>
+                        <span class="action-btn-title">Начать</span>
+                    </button>
+                </div>
+                <div class="shipment-qty-card" id="shipmentQtyCard" style="display: none;">
+                    <div class="shipment-qty-label">Ожидаемый товар к отгрузке:</div>
+                    <div class="shipment-qty-value" id="shipmentQtyValue">0</div>
+                </div>
+            </div>
+
+            <!-- Таблица отгрузки -->
+            <div class="shipment-table-section" id="shipmentTableSection" style="display: none;">
+                <div class="shipment-table-card">
+                    <!-- Шапка с информацией о заказе -->
+                    <div class="shipment-info-bar">
+                        <div class="info-item">
+                            <span class="info-label">Номер заказа:</span>
+                            <span class="info-value" id="infoNomer">—</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Автор:</span>
+                            <span class="info-value" id="infoUser">—</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Дата:</span>
+                            <span class="info-value" id="infoDate">—</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Время:</span>
+                            <span class="info-value" id="infoTime">—</span>
+                        </div>
+                    </div>
+
+                    <!-- Таблица -->
+                    <div class="shipment-table-wrapper">
+                        <table class="shipment-table">
+                            <thead>
+                                <tr>
+                                    <th class="col-num">№</th>
+                                    <th>Код</th>
+                                    <th>Артикул</th>
+                                </tr>
+                            </thead>
+                            <tbody id="shipmentTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Модальное окно выбора заказа -->
+    <div id="orderModal" class="modal-overlay" style="display: none;">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-header">
+                <h2>📋 Выбор заказа</h2>
+                <button class="modal-close" id="closeModalBtn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-toolbar">
+                    <input type="text" id="modalSearchInput" placeholder="Поиск по номеру заказа..." class="modal-search-input">
+                    <button id="refreshModalBtn" class="btn btn-secondary btn-small">🔄 Обновить</button>
+                </div>
+                <div class="modal-order-list" id="orderList">
+                </div>
+                <div id="modalEmptyState" class="empty-state" style="display: none;">
+                    Заказов со статусом "3" не найдено
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="shipment.js"></script>
+
+    <!-- Модальное окно "Начать" -->
+    <div id="startModal" class="modal-overlay" style="display: none;">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-header">
+                <h2>▶️ Начало отгрузки</h2>
+                <button class="modal-close" id="closeStartModalBtn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Статус-сообщение и счётчик -->
+                <div class="status-counter-row">
+                    <div id="startStatus" class="start-status" style="display: none;"></div>
+                    <div id="startCounter" class="start-counter" style="display: none;"></div>
+                </div>
+
+                <div class="start-input-group">
+                    <input type="text" id="kodpodInput" placeholder="Введите kodpod..." autocomplete="off">
+                    <button id="startConfirmBtn" class="btn btn-primary">Ввод</button>
+                </div>
+
+                <!-- Таблица артикулов в модалке -->
+                <div class="start-modal-table-wrapper">
+                    <table class="start-modal-table" id="startModalTable">
+                        <thead>
+                            <tr>
+                                <th>№</th>
+                                <th>Артикул</th>
+                            </tr>
+                        </thead>
+                        <tbody id="startModalTableBody">
+                        </tbody>
+                    </table>
+                </div>
+                <div id="startModalEmpty" class="empty-state" style="display: none;">
+                    Все товары отгружены
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

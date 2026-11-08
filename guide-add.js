@@ -610,13 +610,20 @@ const GUIDE_ADD = {
         const tableName = this.currentTable;
 
         // Проверяем таблицу "Состав": если в колонке "Категория" есть хотя бы одна "Товар", то opt="Сборка"
+        // Иначе убираем opt, чтобы не оставалось старое значение
         const tbody = document.getElementById('compositionBody');
+        let hasTovar = false;
         for (let i = 0; i < tbody.rows.length; i++) {
             const catInput = tbody.rows[i].querySelector(`input[name="comp_category_${i}"]`);
             if (catInput && catInput.value.trim() === 'Товар') {
-                formData.set('opt', 'Сборка');
+                hasTovar = true;
                 break;
             }
+        }
+        if (hasTovar) {
+            formData.set('opt', 'Сборка');
+        } else {
+            formData.delete('opt');
         }
 
         // Проверка обязательных полей
@@ -2230,7 +2237,7 @@ const GUIDE_ADD = {
 
     bindEvents() {
         document.getElementById('backBtn').addEventListener('click', () => {
-            window.location.href = 'guide.html';
+            window.history.back();
         });
 
         document.getElementById('addCompositionFromGuide').addEventListener('click', () => {

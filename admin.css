@@ -56,7 +56,7 @@
     justify-content: center;
     gap: 10px;
     cursor: pointer;
-    transition: all 0.25s;
+    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
     text-align: center;
     aspect-ratio: auto;
     min-height: 120px;
@@ -66,29 +66,51 @@
     background: rgba(139, 92, 246, 0.15);
     border-color: #8b5cf6;
     transform: translateY(-4px);
-    box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
+    box-shadow: 0 12px 32px rgba(139, 92, 246, 0.35),
+                0 0 24px rgba(139, 92, 246, 0.2);
+}
+
+.admin-btn:active {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(139, 92, 246, 0.25);
 }
 
 .admin-btn-danger:hover {
     background: rgba(231, 76, 60, 0.15);
     border-color: #e74c3c;
-    box-shadow: 0 8px 24px rgba(231, 76, 60, 0.3);
+    box-shadow: 0 12px 32px rgba(231, 76, 60, 0.35),
+                0 0 24px rgba(231, 76, 60, 0.2);
 }
 
 .admin-btn-icon {
     font-size: 2.2rem;
+    transition: transform 0.3s ease;
+}
+
+.admin-btn:hover .admin-btn-icon {
+    transform: scale(1.15);
 }
 
 .admin-btn-title {
-    color: #ffffff;
+    color: #d1d5db;
     font-size: 0.9rem;
     font-weight: 600;
+    transition: color 0.3s ease;
+}
+
+.admin-btn:hover .admin-btn-title {
+    color: #ffffff;
 }
 
 .admin-btn-desc {
-    color: #a0a0c0;
+    color: #9ca3af;
     font-size: 0.7rem;
     line-height: 1.3;
+    transition: color 0.3s ease;
+}
+
+.admin-btn:hover .admin-btn-desc {
+    color: #c0c0e0;
 }
 
 /* ==================== INFO SECTION ==================== */
